@@ -12,6 +12,12 @@
             <strong>No Active Session</strong>
           }
         </span>
+        @if (gooseAvailable) {
+          <span class="provider-badge">
+            <mat-icon class="provider-icon">smart_toy</mat-icon>
+            {{ gooseProvider }} · {{ gooseModel }}
+          </span>
+        }
       </div>
       <div class="session-actions">
         <button

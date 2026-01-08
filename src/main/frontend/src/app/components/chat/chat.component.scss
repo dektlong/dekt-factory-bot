@@ -58,6 +58,25 @@
         font-family: 'Roboto Mono', monospace;
       }
     }
+    
+    .provider-badge {
+      display: flex;
+      align-items: center;
+      gap: var(--mat-sys-spacing-1, 4px);
+      padding: var(--mat-sys-spacing-1, 4px) var(--mat-sys-spacing-2, 8px);
+      background-color: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+      border-radius: var(--mat-sys-corner-full, 9999px);
+      font: var(--mat-sys-label-small);
+      font-weight: 500;
+      white-space: nowrap;
+      
+      .provider-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
+    }
   }
   
   .session-actions {
