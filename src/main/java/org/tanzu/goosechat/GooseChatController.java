@@ -171,25 +171,17 @@ public class GooseChatController {
                     .data("Processing your request..."));
 
                 // Build options for this session
+                // Note: The wrapper automatically reads GOOSE_PROVIDER and GOOSE_MODEL
+                // from environment variables if not specified here
                 GooseOptions.Builder optionsBuilder = GooseOptions.builder()
                     .timeout(Duration.ofMinutes(10));
                 
-                // Set provider - use session value if specified, otherwise fall back to env
-                String provider = session.provider();
-                if (provider == null || provider.isEmpty()) {
-                    provider = System.getenv("GOOSE_PROVIDER");
+                // Override provider/model if session specifies them
+                if (session.provider() != null && !session.provider().isEmpty()) {
+                    optionsBuilder.provider(session.provider());
                 }
-                if (provider != null && !provider.isEmpty()) {
-                    optionsBuilder.provider(provider);
-                }
-                
-                // Set model - use session value if specified, otherwise fall back to env
-                String model = session.model();
-                if (model == null || model.isEmpty()) {
-                    model = System.getenv("GOOSE_MODEL");
-                }
-                if (model != null && !model.isEmpty()) {
-                    optionsBuilder.model(model);
+                if (session.model() != null && !session.model().isEmpty()) {
+                    optionsBuilder.model(session.model());
                 }
 
                 GooseOptions options = optionsBuilder.build();
