@@ -41,8 +41,9 @@ export class ChatComponent {
   protected isCreatingSession = signal(false);
   protected activityPanelCollapsed = signal(false);
   
-  // Expose activities from the service
+  // Expose activities and todos from the service
   protected activities = computed(() => this.chatService.activities());
+  protected todos = computed(() => this.chatService.todos());
 
   constructor(
     private chatService: ChatService,
@@ -112,8 +113,10 @@ export class ChatComponent {
       const newSessionId = await this.chatService.createSession();
       this.sessionId.set(newSessionId);
       
-      // Clear messages for new conversation
+      // Clear messages and todos for new conversation
       this.messages.set([]);
+      this.chatService.clearTodos();
+      this.chatService.clearActivities();
       
       this.snackBar.open('New Goose conversation started', 'Close', {
         duration: 2000,
@@ -148,6 +151,8 @@ export class ChatComponent {
       await this.chatService.closeSession(currentSessionId);
       this.sessionId.set(null);
       this.messages.set([]);
+      this.chatService.clearTodos();
+      this.chatService.clearActivities();
       
       this.snackBar.open('Conversation ended', 'Close', {
         duration: 2000,

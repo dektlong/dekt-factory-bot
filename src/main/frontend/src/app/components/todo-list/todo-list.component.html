@@ -1,0 +1,26 @@
+<div class="todo-list-section">
+  <div class="todo-header">
+    <mat-icon class="todo-header-icon">checklist</mat-icon>
+    <span class="todo-header-title">Tasks</span>
+  </div>
+  
+  <div class="todo-items">
+    @for (todo of todos(); track todo.id) {
+      <div class="todo-item" 
+           [class.completed]="todo.status === 'completed'"
+           [class.in-progress]="todo.status === 'in_progress'"
+           [class.cancelled]="todo.status === 'cancelled'">
+        @if (todo.status === 'in_progress') {
+          <mat-spinner diameter="16" class="todo-spinner"></mat-spinner>
+        } @else {
+          <mat-icon class="todo-icon" 
+                    [class.completed]="todo.status === 'completed'"
+                    [class.cancelled]="todo.status === 'cancelled'">
+            {{ getStatusIcon(todo.status) }}
+          </mat-icon>
+        }
+        <span class="todo-content">{{ todo.content }}</span>
+      </div>
+    }
+  </div>
+</div>

@@ -4,7 +4,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ActivityEvent } from '../../services/chat.service';
+import { ActivityEvent, TodoItem } from '../../services/chat.service';
+import { TodoListComponent } from '../todo-list/todo-list.component';
 
 @Component({
   selector: 'app-activity-panel',
@@ -14,15 +15,19 @@ import { ActivityEvent } from '../../services/chat.service';
     MatButtonModule,
     MatTooltipModule,
     MatCardModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    TodoListComponent
   ],
   templateUrl: './activity-panel.component.html',
   styleUrl: './activity-panel.component.scss'
 })
 export class ActivityPanelComponent {
   activities = input<ActivityEvent[]>([]);
+  todos = input<TodoItem[]>([]);
   collapsed = input<boolean>(false);
   collapseToggle = output<void>();
+  
+  hasTodos = computed(() => this.todos().length > 0);
   
   // Group activities by their status for visual organization
   runningActivities = computed(() => 

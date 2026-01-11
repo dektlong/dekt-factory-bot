@@ -34,6 +34,12 @@ export interface ActivityEvent {
   message?: string;
 }
 
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -48,6 +54,10 @@ export class ChatService {
   // Signal to track current activities for the activity panel
   private _activities = signal<ActivityEvent[]>([]);
   readonly activities = this._activities.asReadonly();
+  
+  // Signal to track todo items parsed from todo__todo_write tool calls
+  private _todos = signal<TodoItem[]>([]);
+  readonly todos = this._todos.asReadonly();
 
   /**
    * Get the current active session
@@ -57,10 +67,60 @@ export class ChatService {
   }
 
   /**
-   * Clear all activities (typically when starting a new message)
+   * Clear all activities (typically when starting a new message).
+   * Note: Todos are NOT cleared here - they persist across messages within a session
+   * and are only updated when a new todo_write event arrives.
    */
   clearActivities(): void {
     this._activities.set([]);
+  }
+  
+  /**
+   * Clear todos (called when starting a new session)
+   */
+  clearTodos(): void {
+    this._todos.set([]);
+  }
+
+  /**
+   * Parse markdown checklist content from todo__todo_write into TodoItem array.
+   * Handles formats:
+   * - [ ] pending task
+   * - [x] completed task  
+   * - [-] in-progress or cancelled task
+   */
+  private parseTodoContent(content: string): TodoItem[] {
+    const lines = content.split('\n');
+    const todos: TodoItem[] = [];
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('-')) continue;
+      
+      // Match patterns: - [ ] text, - [x] text, - [-] text
+      const match = trimmed.match(/^-\s*\[(.)\]\s*(.+)$/);
+      if (match) {
+        const marker = match[1].toLowerCase();
+        const taskContent = match[2].trim();
+        
+        let status: TodoItem['status'];
+        if (marker === 'x') {
+          status = 'completed';
+        } else if (marker === '-') {
+          status = 'in_progress';
+        } else {
+          status = 'pending';
+        }
+        
+        todos.push({
+          id: `todo-${todos.length}`,
+          content: taskContent,
+          status
+        });
+      }
+    }
+    
+    return todos;
   }
 
   /**
@@ -162,17 +222,34 @@ export class ChatService {
             message: activityData.message
           };
           
-          // Update activity in the list or add new one
-          this._activities.update(activities => {
-            // For tool responses, update the existing tool request
-            if (activity.type === 'tool_response') {
-              return activities.map(a => 
-                a.id === activity.id ? { ...a, status: activity.status } : a
-              );
-            }
-            // For new activities, add to the list
-            return [...activities, activity];
-          });
+          // Check if this is a todo_write tool call
+          const isTodoWrite = activity.toolName === 'todo_write' && 
+                              activity.extensionId === 'todo';
+          
+          if (isTodoWrite && activity.arguments?.['content']) {
+            // Parse the todo content and update todos signal
+            const todoContent = activity.arguments['content'] as string;
+            const parsedTodos = this.parseTodoContent(todoContent);
+            this._todos.set(parsedTodos);
+            // Don't add todo_write to the regular activities list
+          } else {
+            // Update activity in the list or add new one
+            this._activities.update(activities => {
+              // For tool responses, update the existing tool request
+              if (activity.type === 'tool_response') {
+                // Check if this is a response to a todo_write (skip it)
+                const existingActivity = activities.find(a => a.id === activity.id);
+                if (existingActivity?.toolName === 'todo_write') {
+                  return activities;
+                }
+                return activities.map(a => 
+                  a.id === activity.id ? { ...a, status: activity.status } : a
+                );
+              }
+              // For new activities, add to the list
+              return [...activities, activity];
+            });
+          }
           
           this.activitySubject.next(activity);
         } catch (e) {

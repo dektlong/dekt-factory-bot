@@ -18,13 +18,17 @@
 
   @if (!collapsed()) {
     <div class="panel-content">
-      @if (!hasActivities()) {
+      @if (hasTodos()) {
+        <app-todo-list [todos]="todos()" />
+      }
+      
+      @if (!hasActivities() && !hasTodos()) {
         <div class="empty-state">
           <mat-icon class="empty-icon">hourglass_empty</mat-icon>
           <p>No activity yet</p>
           <p class="empty-hint">Tool calls and notifications will appear here</p>
         </div>
-      } @else {
+      } @else if (hasActivities()) {
         <div class="activities-list">
           @for (activity of activities(); track activity.id) {
             <div class="activity-item" [class.running]="activity.status === 'running'" 
