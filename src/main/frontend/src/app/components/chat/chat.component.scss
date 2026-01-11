@@ -4,16 +4,25 @@
   overflow: hidden;
 }
 
+.chat-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 100%;
-  max-width: 1200px;
+  flex: 1;
+  min-width: 0;
+  max-width: 1000px;
   margin: 0 auto;
   padding: var(--mat-sys-spacing-4, 16px);
   gap: var(--mat-sys-spacing-4, 16px);
 }
+
+// Activity panel is rendered as a sibling, styles are in its own component
 
 .chat-header {
   background-color: var(--mat-sys-surface-container);

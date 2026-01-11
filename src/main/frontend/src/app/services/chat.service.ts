@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -23,18 +23,44 @@ export interface HealthInfo {
   message?: string;
 }
 
+export interface ActivityEvent {
+  id: string;
+  timestamp: Date;
+  type: 'tool_request' | 'tool_response' | 'notification';
+  toolName?: string;
+  extensionId?: string;
+  arguments?: Record<string, unknown>;
+  status: 'running' | 'completed' | 'error' | 'info';
+  message?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ChatService {
   private readonly apiUrl = '/api/chat';
   private currentSession = signal<SessionInfo | null>(null);
+  
+  // Activity events stream - emits tool calls and notifications
+  private activitySubject = new Subject<ActivityEvent>();
+  readonly activities$ = this.activitySubject.asObservable();
+  
+  // Signal to track current activities for the activity panel
+  private _activities = signal<ActivityEvent[]>([]);
+  readonly activities = this._activities.asReadonly();
 
   /**
    * Get the current active session
    */
   getCurrentSession(): SessionInfo | null {
     return this.currentSession();
+  }
+
+  /**
+   * Clear all activities (typically when starting a new message)
+   */
+  clearActivities(): void {
+    this._activities.set([]);
   }
 
   /**
@@ -100,52 +126,68 @@ export class ChatService {
       const encodedMessage = encodeURIComponent(message);
       const url = `${this.apiUrl}/sessions/${sessionId}/stream?message=${encodedMessage}`;
       
-      console.log('[SSE] Connecting to:', url);
       const eventSource = new EventSource(url);
-      
-      eventSource.onopen = () => {
-        console.log('[SSE] Connection opened');
-      };
 
       // Handle token events - individual tokens as they arrive
       eventSource.addEventListener('token', (event: MessageEvent) => {
         const data = event.data;
         if (data && data.length > 0) {
-          // Log short tokens for debugging
-          if (data.length <= 20) {
-            console.debug(`[SSE token] "${data}"`);
-          }
           observer.next(data);
         }
       });
 
-      // Handle status events
-      eventSource.addEventListener('status', (event: MessageEvent) => {
-        console.log('[SSE status]', event.data);
+      // Handle activity events - tool calls and notifications
+      eventSource.addEventListener('activity', (event: MessageEvent) => {
+        try {
+          const activityData = JSON.parse(event.data);
+          
+          const activity: ActivityEvent = {
+            id: activityData.id,
+            timestamp: new Date(activityData.timestamp || Date.now()),
+            type: activityData.type,
+            toolName: activityData.toolName,
+            extensionId: activityData.extensionId,
+            arguments: activityData.arguments,
+            status: activityData.status,
+            message: activityData.message
+          };
+          
+          // Update activity in the list or add new one
+          this._activities.update(activities => {
+            // For tool responses, update the existing tool request
+            if (activity.type === 'tool_response') {
+              return activities.map(a => 
+                a.id === activity.id ? { ...a, status: activity.status } : a
+              );
+            }
+            // For new activities, add to the list
+            return [...activities, activity];
+          });
+          
+          this.activitySubject.next(activity);
+        } catch (e) {
+          console.warn('Failed to parse activity event:', event.data, e);
+        }
       });
 
       // Handle completion event
-      eventSource.addEventListener('complete', (event: MessageEvent) => {
-        console.log('[SSE complete] Total tokens:', event.data);
+      eventSource.addEventListener('complete', () => {
         eventSource.close();
         observer.complete();
       });
 
       // Handle error events from the server
       eventSource.addEventListener('error', (event: MessageEvent) => {
-        console.error('[SSE error]', event.data);
         eventSource.close();
         observer.error(new Error(event.data || 'Stream error'));
       });
 
       // Handle connection errors
-      eventSource.onerror = (event: Event) => {
+      eventSource.onerror = () => {
         // Check if the connection was closed normally (after 'complete' event)
         if (eventSource.readyState === EventSource.CLOSED) {
-          console.log('[SSE] Connection closed');
           observer.complete();
         } else {
-          console.error('[SSE] Connection error:', event);
           eventSource.close();
           observer.error(new Error('Connection to server failed'));
         }
