@@ -256,9 +256,11 @@ public class GooseChatController {
                                         || token.contains("\n");
                                     
                                     if (shouldFlush && !tokenBatch.isEmpty()) {
+                                        // Wrap token in JSON to preserve whitespace
+                                        String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
                                         emitter.send(SseEmitter.event()
                                             .name("token")
-                                            .data(tokenBatch.toString()));
+                                            .data(tokenJson));
                                         tokenBatch.setLength(0);
                                         lastSendTime[0] = now;
                                     }
@@ -276,9 +278,11 @@ public class GooseChatController {
                             case "complete" -> {
                                 // Flush any remaining tokens before complete
                                 if (!tokenBatch.isEmpty()) {
+                                    // Wrap token in JSON to preserve whitespace
+                                    String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
                                     emitter.send(SseEmitter.event()
                                         .name("token")
-                                        .data(tokenBatch.toString()));
+                                        .data(tokenJson));
                                     tokenBatch.setLength(0);
                                 }
                                 // Send complete event
@@ -296,9 +300,11 @@ public class GooseChatController {
                 // Flush any remaining tokens
                 if (!tokenBatch.isEmpty()) {
                     try {
+                        // Wrap token in JSON to preserve whitespace
+                        String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
                         emitter.send(SseEmitter.event()
                             .name("token")
-                            .data(tokenBatch.toString()));
+                            .data(tokenJson));
                     } catch (IOException e) {
                         logger.error("Error flushing final tokens for session {}", sessionId, e);
                     }

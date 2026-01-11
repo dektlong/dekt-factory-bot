@@ -129,10 +129,20 @@ export class ChatService {
       const eventSource = new EventSource(url);
 
       // Handle token events - individual tokens as they arrive
+      // Tokens are JSON-encoded strings to preserve whitespace (SSE strips leading spaces)
       eventSource.addEventListener('token', (event: MessageEvent) => {
         const data = event.data;
         if (data && data.length > 0) {
-          observer.next(data);
+          try {
+            // Parse JSON string to get the actual token with preserved whitespace
+            const token = JSON.parse(data);
+            if (token && token.length > 0) {
+              observer.next(token);
+            }
+          } catch {
+            // Fallback: use raw data if not valid JSON
+            observer.next(data);
+          }
         }
       });
 

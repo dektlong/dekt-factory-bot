@@ -1,0 +1,67 @@
+<div class="activity-panel" [class.collapsed]="collapsed()">
+  <div class="panel-header">
+    <div class="header-content">
+      <mat-icon class="header-icon">timeline</mat-icon>
+      <span class="header-title">Activity</span>
+      @if (runningActivities().length > 0) {
+        <span class="running-count">{{ runningActivities().length }}</span>
+      }
+    </div>
+    <button
+      mat-icon-button
+      (click)="toggleCollapse()"
+      [matTooltip]="collapsed() ? 'Expand activity panel' : 'Collapse activity panel'"
+    >
+      <mat-icon>{{ collapsed() ? 'chevron_left' : 'chevron_right' }}</mat-icon>
+    </button>
+  </div>
+
+  @if (!collapsed()) {
+    <div class="panel-content">
+      @if (!hasActivities()) {
+        <div class="empty-state">
+          <mat-icon class="empty-icon">hourglass_empty</mat-icon>
+          <p>No activity yet</p>
+          <p class="empty-hint">Tool calls and notifications will appear here</p>
+        </div>
+      } @else {
+        <div class="activities-list">
+          @for (activity of activities(); track activity.id) {
+            <div class="activity-item" [class.running]="activity.status === 'running'" 
+                 [class.completed]="activity.status === 'completed'"
+                 [class.error]="activity.status === 'error'"
+                 [class.info]="activity.status === 'info'">
+              <div class="activity-header">
+                @if (activity.status === 'running') {
+                  <mat-spinner diameter="16" class="activity-spinner"></mat-spinner>
+                } @else {
+                  <mat-icon class="activity-icon" [class.success]="activity.status === 'completed'">
+                    {{ getActivityIcon(activity) }}
+                  </mat-icon>
+                }
+                <div class="activity-title-section">
+                  <span class="activity-title">{{ getActivityTitle(activity) }}</span>
+                  @if (getActivitySubtitle(activity)) {
+                    <span class="activity-subtitle">{{ getActivitySubtitle(activity) }}</span>
+                  }
+                </div>
+              </div>
+              
+              @if (activity.message) {
+                <div class="activity-message">{{ activity.message }}</div>
+              }
+              
+              @if (activity.arguments && activity.type === 'tool_request') {
+                <div class="activity-arguments">
+                  @for (arg of formatArguments(activity.arguments); track arg) {
+                    <div class="argument">{{ arg }}</div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

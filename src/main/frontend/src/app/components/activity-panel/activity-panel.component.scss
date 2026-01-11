@@ -1,0 +1,221 @@
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--mat-sys-surface-container);
+  border-left: 1px solid var(--mat-sys-outline-variant);
+  transition: width 0.2s ease-in-out;
+  width: 320px;
+  min-width: 320px;
+  
+  &.collapsed {
+    width: 48px;
+    min-width: 48px;
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-high);
+  min-height: 48px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  
+  .collapsed & {
+    display: none;
+  }
+}
+
+.header-icon {
+  color: var(--mat-sys-primary);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.header-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--mat-sys-on-surface);
+  white-space: nowrap;
+}
+
+.running-count {
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 20px;
+  text-align: center;
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
+  
+  .empty-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+  
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+  
+  .empty-hint {
+    font-size: 12px;
+    margin-top: 4px;
+    opacity: 0.7;
+  }
+}
+
+.activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-item {
+  background: var(--mat-sys-surface);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  transition: all 0.15s ease;
+  
+  &.running {
+    border-left: 3px solid var(--mat-sys-primary);
+    background: color-mix(in srgb, var(--mat-sys-primary) 5%, var(--mat-sys-surface));
+  }
+  
+  &.completed {
+    border-left: 3px solid var(--mat-sys-tertiary);
+    opacity: 0.8;
+  }
+  
+  &.error {
+    border-left: 3px solid var(--mat-sys-error);
+    background: color-mix(in srgb, var(--mat-sys-error) 5%, var(--mat-sys-surface));
+  }
+  
+  &.info {
+    border-left: 3px solid var(--mat-sys-secondary);
+  }
+}
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-spinner {
+  flex-shrink: 0;
+}
+
+.activity-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--mat-sys-on-surface-variant);
+  
+  &.success {
+    color: var(--mat-sys-tertiary);
+  }
+}
+
+.activity-title-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.activity-title {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--mat-sys-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-subtitle {
+  font-size: 11px;
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-message {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--mat-sys-on-surface-variant);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.activity-arguments {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  
+  .argument {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 11px;
+    color: var(--mat-sys-on-surface-variant);
+    padding: 2px 0;
+    word-break: break-all;
+    
+    &::before {
+      content: '•';
+      margin-right: 6px;
+      color: var(--mat-sys-outline);
+    }
+  }
+}
+
+// Scrollbar styling
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: var(--mat-sys-outline-variant);
+  border-radius: 3px;
+  
+  &:hover {
+    background: var(--mat-sys-outline);
+  }
+}
