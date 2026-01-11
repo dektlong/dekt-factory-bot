@@ -47,28 +47,28 @@ public class ChatHealthController {
     }
 
     private String getConfiguredProvider() {
-        String provider = System.getenv("GOOSE_PROVIDER__TYPE");
-        if (provider == null || provider.isEmpty()) {
-            provider = System.getenv("GOOSE_PROVIDER");
-        }
-        if (provider == null || provider.isEmpty()) {
-            // Infer from available API keys
-            if (isEnvSet("ANTHROPIC_API_KEY")) return "anthropic";
-            if (isEnvSet("OPENAI_API_KEY")) return "openai";
-            if (isEnvSet("GOOGLE_API_KEY")) return "google";
-            if (isEnvSet("DATABRICKS_HOST")) return "databricks";
-            if (isEnvSet("OLLAMA_HOST")) return "ollama";
-            return "unknown";
-        }
-        return provider;
+        return getEnvOrElse("GOOSE_PROVIDER__TYPE",
+               getEnvOrElse("GOOSE_PROVIDER",
+               inferProviderFromApiKeys()));
+    }
+
+    private String inferProviderFromApiKeys() {
+        if (isEnvSet("ANTHROPIC_API_KEY")) return "anthropic";
+        if (isEnvSet("OPENAI_API_KEY")) return "openai";
+        if (isEnvSet("GOOGLE_API_KEY")) return "google";
+        if (isEnvSet("DATABRICKS_HOST")) return "databricks";
+        if (isEnvSet("OLLAMA_HOST")) return "ollama";
+        return "unknown";
     }
 
     private String getConfiguredModel() {
-        String model = System.getenv("GOOSE_PROVIDER__MODEL");
-        if (model == null || model.isEmpty()) {
-            model = System.getenv("GOOSE_MODEL");
-        }
-        return model != null && !model.isEmpty() ? model : "default";
+        return getEnvOrElse("GOOSE_PROVIDER__MODEL",
+               getEnvOrElse("GOOSE_MODEL", "default"));
+    }
+
+    private String getEnvOrElse(String name, String fallback) {
+        String value = System.getenv(name);
+        return (value != null && !value.isEmpty()) ? value : fallback;
     }
 
     private boolean isEnvSet(String name) {

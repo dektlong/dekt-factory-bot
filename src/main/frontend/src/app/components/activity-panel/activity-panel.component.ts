@@ -43,13 +43,12 @@ export class ActivityPanelComponent {
     if (activity.type === 'notification') {
       return 'info';
     }
-    if (activity.status === 'running') {
-      return 'pending';
+
+    switch (activity.status) {
+      case 'running': return 'pending';
+      case 'error': return 'error';
+      default: return 'check_circle';
     }
-    if (activity.status === 'error') {
-      return 'error';
-    }
-    return 'check_circle';
   }
 
   getActivityTitle(activity: ActivityEvent): string {

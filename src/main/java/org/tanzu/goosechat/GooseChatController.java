@@ -423,17 +423,9 @@ public class GooseChatController {
                     }
                     
                     // Parse extension from tool name (format: extension__tool or extension/tool)
-                    String extensionId = "";
-                    String shortToolName = toolName;
-                    if (toolName.contains("__")) {
-                        String[] parts = toolName.split("__", 2);
-                        extensionId = parts[0];
-                        shortToolName = parts.length > 1 ? parts[1] : toolName;
-                    } else if (toolName.contains("/")) {
-                        String[] parts = toolName.split("/", 2);
-                        extensionId = parts[0];
-                        shortToolName = parts.length > 1 ? parts[1] : toolName;
-                    }
+                    var parsedTool = parseToolName(toolName);
+                    String extensionId = parsedTool.extensionId();
+                    String shortToolName = parsedTool.toolName();
                     
                     // Build activity JSON
                     var activityNode = objectMapper.createObjectNode();
@@ -629,6 +621,27 @@ public class GooseChatController {
         String sessionId,
         boolean active
     ) {}
+
+    /**
+     * Parsed tool name containing the extension ID and tool name components.
+     */
+    private record ParsedToolName(String extensionId, String toolName) {}
+
+    /**
+     * Parse a tool name into extension ID and short tool name.
+     * Handles formats: "extension__tool" or "extension/tool"
+     */
+    private ParsedToolName parseToolName(String fullToolName) {
+        String delimiter = fullToolName.contains("__") ? "__" :
+                          fullToolName.contains("/") ? "/" : null;
+
+        if (delimiter == null) {
+            return new ParsedToolName("", fullToolName);
+        }
+
+        String[] parts = fullToolName.split(delimiter, 2);
+        return new ParsedToolName(parts[0], parts.length > 1 ? parts[1] : fullToolName);
+    }
 
     /**
      * Internal session tracking class.
