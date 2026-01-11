@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -23,18 +23,44 @@ export interface HealthInfo {
   message?: string;
 }
 
+export interface ActivityEvent {
+  id: string;
+  timestamp: Date;
+  type: 'tool_request' | 'tool_response' | 'notification';
+  toolName?: string;
+  extensionId?: string;
+  arguments?: Record<string, unknown>;
+  status: 'running' | 'completed' | 'error' | 'info';
+  message?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ChatService {
   private readonly apiUrl = '/api/chat';
   private currentSession = signal<SessionInfo | null>(null);
+  
+  // Activity events stream - emits tool calls and notifications
+  private activitySubject = new Subject<ActivityEvent>();
+  readonly activities$ = this.activitySubject.asObservable();
+  
+  // Signal to track current activities for the activity panel
+  private _activities = signal<ActivityEvent[]>([]);
+  readonly activities = this._activities.asReadonly();
 
   /**
    * Get the current active session
    */
   getCurrentSession(): SessionInfo | null {
     return this.currentSession();
+  }
+
+  /**
+   * Clear all activities (typically when starting a new message)
+   */
+  clearActivities(): void {
+    this._activities.set([]);
   }
 
   /**
@@ -79,92 +105,98 @@ export class ChatService {
   }
 
   /**
-   * Send a message to the current session with SSE streaming
+   * Send a message to the current session with SSE streaming.
+   * 
+   * Uses the native browser EventSource API for better handling of proxy buffering
+   * and chunked encoding (especially important for Cloud Foundry's Go Router).
+   * 
+   * Uses token-level streaming from Goose CLI's --output-format stream-json.
+   * Each emitted value is a single token as it arrives from the LLM.
+   * 
+   * SSE Events handled:
+   * - `token`: Individual tokens (emitted to observer)
+   * - `complete`: Stream completion with token count
+   * - `status`: Processing status messages (logged)
+   * - `error`: Error events
    */
   sendMessage(message: string, sessionId: string): Observable<string> {
     return new Observable(observer => {
-      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-      let buffer = '';
+      // Use GET endpoint with EventSource for better streaming support
+      // EventSource handles proxy buffering and chunked encoding better than fetch
+      const encodedMessage = encodeURIComponent(message);
+      const url = `${this.apiUrl}/sessions/${sessionId}/stream?message=${encodedMessage}`;
+      
+      const eventSource = new EventSource(url);
 
-      fetch(`${this.apiUrl}/sessions/${sessionId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      // Handle token events - individual tokens as they arrive
+      eventSource.addEventListener('token', (event: MessageEvent) => {
+        const data = event.data;
+        if (data && data.length > 0) {
+          observer.next(data);
         }
-        return response.body;
-      })
-      .then(body => {
-        if (!body) {
-          throw new Error('Response body is empty');
-        }
-        
-        reader = body.getReader();
-        const decoder = new TextDecoder();
-
-        const processStream = (): Promise<void> => {
-          return reader!.read().then(({ done, value }) => {
-            if (done) {
-              observer.complete();
-              return;
-            }
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            
-            // Keep the last incomplete line in the buffer
-            buffer = lines.pop() || '';
-            
-            let currentEvent = '';
-            for (const line of lines) {
-              if (line.startsWith('event:')) {
-                currentEvent = line.substring(6).trim();
-              } else if (line.startsWith('data:')) {
-                // Per SSE spec, remove "data:" and optional leading space
-                let data = line.substring(5);
-                if (data.startsWith(' ')) {
-                  data = data.substring(1);
-                }
-                
-                // Handle different event types
-                if (currentEvent === 'error') {
-                  observer.error(new Error(data));
-                  return;
-                } else if (currentEvent === 'heartbeat' || currentEvent === 'status') {
-                  // Ignore heartbeat and status events - they're just for keeping connection alive
-                  console.log(`[SSE ${currentEvent}]`, data);
-                  currentEvent = '';
-                  continue;
-                } else if (currentEvent === 'message' || currentEvent === '') {
-                  // Emit message data to the observer
-                  observer.next(data);
-                }
-                
-                currentEvent = '';
-              }
-            }
-
-            return processStream();
-          });
-        };
-
-        return processStream();
-      })
-      .catch(error => {
-        console.error('Stream error:', error);
-        observer.error(error);
       });
 
-      return () => {
-        // Cleanup on unsubscribe - cancel the stream reader
-        if (reader) {
-          reader.cancel().catch(err => console.error('Error canceling stream:', err));
+      // Handle activity events - tool calls and notifications
+      eventSource.addEventListener('activity', (event: MessageEvent) => {
+        try {
+          const activityData = JSON.parse(event.data);
+          
+          const activity: ActivityEvent = {
+            id: activityData.id,
+            timestamp: new Date(activityData.timestamp || Date.now()),
+            type: activityData.type,
+            toolName: activityData.toolName,
+            extensionId: activityData.extensionId,
+            arguments: activityData.arguments,
+            status: activityData.status,
+            message: activityData.message
+          };
+          
+          // Update activity in the list or add new one
+          this._activities.update(activities => {
+            // For tool responses, update the existing tool request
+            if (activity.type === 'tool_response') {
+              return activities.map(a => 
+                a.id === activity.id ? { ...a, status: activity.status } : a
+              );
+            }
+            // For new activities, add to the list
+            return [...activities, activity];
+          });
+          
+          this.activitySubject.next(activity);
+        } catch (e) {
+          console.warn('Failed to parse activity event:', event.data, e);
         }
+      });
+
+      // Handle completion event
+      eventSource.addEventListener('complete', () => {
+        eventSource.close();
+        observer.complete();
+      });
+
+      // Handle error events from the server
+      eventSource.addEventListener('error', (event: MessageEvent) => {
+        eventSource.close();
+        observer.error(new Error(event.data || 'Stream error'));
+      });
+
+      // Handle connection errors
+      eventSource.onerror = () => {
+        // Check if the connection was closed normally (after 'complete' event)
+        if (eventSource.readyState === EventSource.CLOSED) {
+          observer.complete();
+        } else {
+          eventSource.close();
+          observer.error(new Error('Connection to server failed'));
+        }
+      };
+
+      // Cleanup on unsubscribe
+      return () => {
+        console.log('[SSE] Closing connection');
+        eventSource.close();
       };
     });
   }

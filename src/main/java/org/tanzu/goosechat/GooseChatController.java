@@ -1,5 +1,8 @@
 package org.tanzu.goosechat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.tanzu.goose.cf.GooseExecutor;
 import org.tanzu.goose.cf.GooseExecutionException;
 import org.tanzu.goose.cf.GooseOptions;
@@ -17,6 +20,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 
 /**
  * REST controller for managing conversational chat sessions with Goose CLI.
@@ -51,6 +55,7 @@ public class GooseChatController {
     private static final String SESSION_PREFIX = "chat-";
     
     private final GooseExecutor executor;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     
     // Session metadata tracking (Goose handles actual session persistence)
@@ -105,7 +110,6 @@ public class GooseChatController {
             }
 
             ConversationSession session = new ConversationSession(
-                sessionId,
                 provider,
                 model,
                 Duration.ofMinutes(inactivityTimeoutMinutes),
@@ -128,20 +132,47 @@ public class GooseChatController {
 
     /**
      * Send a message to an existing session and stream the response via SSE.
+     * <p>
+     * Uses the native browser EventSource API (GET requests only) which handles
+     * proxy buffering and chunked encoding better than fetch-based SSE parsing.
+     * This is critical for Cloud Foundry's Go Router.
+     * </p>
+     * <p>
+     * Uses Goose CLI's {@code --output-format stream-json} for true token-level streaming.
+     * </p>
+     * <p>
+     * SSE Events emitted:
+     * <ul>
+     *   <li>{@code status} - Initial processing status</li>
+     *   <li>{@code token} - Text tokens as they arrive from the LLM</li>
+     *   <li>{@code activity} - Tool calls and notifications (for activity panel)</li>
+     *   <li>{@code complete} - Completion event with token count</li>
+     *   <li>{@code error} - Error events</li>
+     * </ul>
+     * </p>
      * 
      * @param sessionId the conversation session ID
-     * @param request the message to send
-     * @return SSE stream of response chunks
+     * @param message the message to send (URL-encoded)
+     * @return SSE stream of response events
      */
-    @PostMapping(value = "/sessions/{sessionId}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter sendMessage(
+    @GetMapping(value = "/sessions/{sessionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessage(
             @PathVariable String sessionId,
-            @RequestBody SendMessageRequest request) {
-        logger.info("Sending message to session {}: {} chars", sessionId, request.message().length());
+            @RequestParam String message,
+            HttpServletResponse response) {
+        logger.info("Streaming message to session {}: {} chars", sessionId, message.length());
+        
+        // Disable buffering for SSE - critical for Cloud Foundry and reverse proxies
+        // Note: Do NOT set Transfer-Encoding manually - Tomcat adds it automatically
+        // and setting it twice causes "too many transfer encodings" error in Go Router
+        response.setHeader("X-Accel-Buffering", "no");  // Nginx
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         
         SseEmitter emitter = new SseEmitter(600_000L); // 10 minutes timeout
         
         executorService.execute(() -> {
+            Stream<String> jsonStream = null;
             try {
                 if (!executor.isAvailable()) {
                     logger.error("Goose CLI is not available");
@@ -171,8 +202,6 @@ public class GooseChatController {
                     .data("Processing your request..."));
 
                 // Build options for this session
-                // Note: The wrapper automatically reads GOOSE_PROVIDER and GOOSE_MODEL
-                // from environment variables if not specified here
                 GooseOptions.Builder optionsBuilder = GooseOptions.builder()
                     .timeout(Duration.ofMinutes(10));
                 
@@ -186,56 +215,113 @@ public class GooseChatController {
 
                 GooseOptions options = optionsBuilder.build();
 
-                // Execute Goose with heartbeat support using native session management
-                // First message starts new session, subsequent messages resume
-                try {
-                    String prompt = request.message();
-                    boolean isFirstMessage = session.messageCount() == 0;
-                    
-                    // Use Goose's native --name and --resume flags for session continuity
-                    // See: https://block.github.io/goose/docs/guides/sessions/session-management/
-                    Future<String> future = executorService.submit(() -> 
-                        executor.executeInSession(sessionId, prompt, !isFirstMessage, options)
-                    );
-
-                    // Send heartbeat messages every 30 seconds while waiting for response
-                    long heartbeatIntervalMs = 30_000L;
-                    String response;
-                    
-                    while (true) {
-                        try {
-                            response = future.get(heartbeatIntervalMs, TimeUnit.MILLISECONDS);
-                            break;
-                        } catch (TimeoutException e) {
-                            // Still waiting for Goose - send heartbeat to keep connection alive
-                            emitter.send(SseEmitter.event()
-                                .name("heartbeat")
-                                .data("Still processing..."));
-                            logger.info("Sent heartbeat for session {}", sessionId);
+                // Execute Goose with streaming JSON output for token-level streaming
+                boolean isFirstMessage = session.messageCount() == 0;
+                jsonStream = executor.executeInSessionStreamingJson(
+                    sessionId, message, !isFirstMessage, options
+                );
+                
+                // Process each JSON event as it arrives
+                // Batch tokens to work around proxy buffering (e.g., Cloud Foundry Go Router)
+                final int[] tokenCount = {0};
+                final StringBuilder tokenBatch = new StringBuilder();
+                final long[] lastSendTime = {System.currentTimeMillis()};
+                final int BATCH_SIZE_THRESHOLD = 10; // Send after N tokens
+                final long BATCH_TIME_THRESHOLD_MS = 100; // Or after 100ms
+                
+                jsonStream.forEach(jsonLine -> {
+                    try {
+                        JsonNode event = objectMapper.readTree(jsonLine);
+                        String eventType = event.has("type") ? event.get("type").asText() : "";
+                        
+                        switch (eventType) {
+                            case "message" -> {
+                                // Check for tool requests in the message content
+                                String activityJson = extractToolActivityFromMessage(event, sessionId);
+                                if (activityJson != null) {
+                                    emitter.send(SseEmitter.event()
+                                        .name("activity")
+                                        .data(activityJson));
+                                }
+                                
+                                // Also extract text tokens if present
+                                String token = extractTextFromMessage(event);
+                                if (token != null) {
+                                    tokenBatch.append(token);
+                                    tokenCount[0]++;
+                                    
+                                    long now = System.currentTimeMillis();
+                                    boolean shouldFlush = tokenCount[0] % BATCH_SIZE_THRESHOLD == 0 
+                                        || (now - lastSendTime[0]) > BATCH_TIME_THRESHOLD_MS
+                                        || token.contains("\n");
+                                    
+                                    if (shouldFlush && !tokenBatch.isEmpty()) {
+                                        emitter.send(SseEmitter.event()
+                                            .name("token")
+                                            .data(tokenBatch.toString()));
+                                        tokenBatch.setLength(0);
+                                        lastSendTime[0] = now;
+                                    }
+                                }
+                            }
+                            case "notification" -> {
+                                // Forward notification events as activity
+                                String activityJson = formatNotificationActivity(event, sessionId);
+                                if (activityJson != null) {
+                                    emitter.send(SseEmitter.event()
+                                        .name("activity")
+                                        .data(activityJson));
+                                }
+                            }
+                            case "complete" -> {
+                                // Flush any remaining tokens before complete
+                                if (!tokenBatch.isEmpty()) {
+                                    emitter.send(SseEmitter.event()
+                                        .name("token")
+                                        .data(tokenBatch.toString()));
+                                    tokenBatch.setLength(0);
+                                }
+                                // Send complete event
+                                processCompleteEvent(jsonLine, emitter, sessionId);
+                            }
                         }
+                    } catch (IOException e) {
+                        logger.error("Error sending SSE event for session {}", sessionId, e);
+                        throw new RuntimeException("SSE send failed", e);
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse JSON event for session {}: {}", sessionId, jsonLine, e);
                     }
-                    
-                    // Split response into lines for streaming effect
-                    String[] lines = response.split("\n");
-                    for (String line : lines) {
+                });
+                
+                // Flush any remaining tokens
+                if (!tokenBatch.isEmpty()) {
+                    try {
                         emitter.send(SseEmitter.event()
-                            .name("message")
-                            .data(line));
+                            .name("token")
+                            .data(tokenBatch.toString()));
+                    } catch (IOException e) {
+                        logger.error("Error flushing final tokens for session {}", sessionId, e);
                     }
+                }
+                
+                logger.info("Session {} sent {} tokens in batches", sessionId, tokenCount[0]);
+                
+                // Increment message count
+                session.incrementMessageCount();
+                
+                emitter.complete();
+                logger.info("Streaming message completed for session {}", sessionId);
                     
-                    // Increment message count
-                    session.incrementMessageCount();
-                    
-                    emitter.complete();
-                    logger.info("Message sent successfully to session {}", sessionId);
-                    
-                } catch (GooseExecutionException e) {
-                    logger.error("Goose execution failed for session {}", sessionId, e);
+            } catch (GooseExecutionException e) {
+                logger.error("Goose execution failed for session {}", sessionId, e);
+                try {
                     emitter.send(SseEmitter.event()
                         .name("error")
                         .data("Execution failed: " + e.getMessage()));
-                    emitter.completeWithError(e);
+                } catch (IOException ex) {
+                    logger.error("Failed to send error event", ex);
                 }
+                emitter.completeWithError(e);
             } catch (Exception e) {
                 logger.error("Unexpected error during message send to session {}", sessionId, e);
                 try {
@@ -246,6 +332,11 @@ public class GooseChatController {
                     logger.error("Failed to send error event", ex);
                 }
                 emitter.completeWithError(e);
+            } finally {
+                // Ensure stream is closed to clean up subprocess
+                if (jsonStream != null) {
+                    jsonStream.close();
+                }
             }
         });
 
@@ -259,6 +350,180 @@ public class GooseChatController {
         });
 
         return emitter;
+    }
+
+    /**
+     * Extract text content from a message event.
+     */
+    private String extractTextFromMessage(JsonNode event) {
+        JsonNode content = event.at("/message/content");
+        if (content.isArray()) {
+            for (JsonNode item : content) {
+                // Look for text content items
+                String contentType = item.has("type") ? item.get("type").asText() : "";
+                if ("text".equals(contentType) && item.has("text")) {
+                    String text = item.get("text").asText();
+                    if (!text.isEmpty()) {
+                        return text;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract tool request activity from a message event.
+     * Tool requests appear as content items with toolRequest type.
+     * 
+     * JSON structure from Goose:
+     * {
+     *   "type": "toolRequest",
+     *   "id": "tool123",
+     *   "toolCall": {
+     *     "status": "success",
+     *     "value": { "name": "extension__tool", "arguments": {...} }
+     *   }
+     * }
+     * 
+     * @return JSON string for the activity event, or null if no tool activity
+     */
+    private String extractToolActivityFromMessage(JsonNode event, String sessionId) {
+        JsonNode content = event.at("/message/content");
+        if (!content.isArray()) {
+            return null;
+        }
+        
+        for (JsonNode item : content) {
+            String contentType = item.has("type") ? item.get("type").asText() : "";
+            
+            // Handle tool requests (Goose uses camelCase: "toolRequest")
+            if ("tool_request".equals(contentType) || "toolRequest".equals(contentType)) {
+                try {
+                    String id = item.has("id") ? item.get("id").asText() : UUID.randomUUID().toString();
+                    JsonNode toolCall = item.has("toolCall") ? item.get("toolCall") : item.get("tool_call");
+                    
+                    String toolName = "unknown";
+                    JsonNode arguments = objectMapper.createObjectNode();
+                    
+                    if (toolCall != null) {
+                        // The toolCall has a nested structure: { "status": "...", "value": { "name": "...", "arguments": {...} } }
+                        JsonNode value = toolCall.has("value") ? toolCall.get("value") : toolCall;
+                        
+                        if (value != null) {
+                            toolName = value.has("name") ? value.get("name").asText() : "unknown";
+                            arguments = value.has("arguments") ? value.get("arguments") : arguments;
+                        }
+                    }
+                    
+                    // Parse extension from tool name (format: extension__tool or extension/tool)
+                    String extensionId = "";
+                    String shortToolName = toolName;
+                    if (toolName.contains("__")) {
+                        String[] parts = toolName.split("__", 2);
+                        extensionId = parts[0];
+                        shortToolName = parts.length > 1 ? parts[1] : toolName;
+                    } else if (toolName.contains("/")) {
+                        String[] parts = toolName.split("/", 2);
+                        extensionId = parts[0];
+                        shortToolName = parts.length > 1 ? parts[1] : toolName;
+                    }
+                    
+                    // Build activity JSON
+                    var activityNode = objectMapper.createObjectNode();
+                    activityNode.put("id", id);
+                    activityNode.put("type", "tool_request");
+                    activityNode.put("toolName", shortToolName);
+                    activityNode.put("extensionId", extensionId);
+                    activityNode.put("status", "running");
+                    activityNode.put("timestamp", System.currentTimeMillis());
+                    activityNode.set("arguments", arguments);
+                    
+                    return objectMapper.writeValueAsString(activityNode);
+                } catch (Exception e) {
+                    logger.warn("Failed to extract tool activity for session {}", sessionId, e);
+                }
+            }
+            
+            // Handle tool responses
+            if ("tool_response".equals(contentType) || "toolResponse".equals(contentType)) {
+                try {
+                    String id = item.has("id") ? item.get("id").asText() : "";
+                    boolean isError = item.has("is_error") && item.get("is_error").asBoolean();
+                    
+                    var activityNode = objectMapper.createObjectNode();
+                    activityNode.put("id", id);
+                    activityNode.put("type", "tool_response");
+                    activityNode.put("status", isError ? "error" : "completed");
+                    activityNode.put("timestamp", System.currentTimeMillis());
+                    
+                    return objectMapper.writeValueAsString(activityNode);
+                } catch (Exception e) {
+                    logger.warn("Failed to extract tool response for session {}", sessionId, e);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Format a notification event as an activity JSON.
+     */
+    private String formatNotificationActivity(JsonNode event, String sessionId) {
+        try {
+            String extensionId = event.has("extension_id") ? event.get("extension_id").asText() : "";
+            JsonNode data = event.get("data");
+            
+            if (data == null) {
+                return null;
+            }
+            
+            var activityNode = objectMapper.createObjectNode();
+            activityNode.put("id", UUID.randomUUID().toString());
+            activityNode.put("type", "notification");
+            activityNode.put("extensionId", extensionId);
+            activityNode.put("timestamp", System.currentTimeMillis());
+            activityNode.put("status", "info");
+            
+            // Extract message from notification data
+            if (data.has("log") && data.get("log").has("message")) {
+                activityNode.put("message", data.get("log").get("message").asText());
+            } else if (data.has("message")) {
+                activityNode.put("message", data.get("message").asText());
+            } else if (data.has("progress")) {
+                JsonNode progress = data.get("progress");
+                double progressValue = progress.has("progress") ? progress.get("progress").asDouble() : 0;
+                String progressMsg = progress.has("message") ? progress.get("message").asText() : "";
+                activityNode.put("message", String.format("%.0f%% %s", progressValue * 100, progressMsg));
+            } else {
+                // Fallback: stringify the data
+                activityNode.put("message", data.toString());
+            }
+            
+            logger.debug("Session {} notification from {}: {}", sessionId, extensionId, 
+                activityNode.has("message") ? activityNode.get("message").asText() : "");
+            
+            return objectMapper.writeValueAsString(activityNode);
+        } catch (Exception e) {
+            logger.warn("Failed to format notification for session {}", sessionId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Process a complete event from streaming JSON.
+     */
+    private void processCompleteEvent(String jsonLine, SseEmitter emitter, String sessionId) throws IOException {
+        try {
+            JsonNode event = objectMapper.readTree(jsonLine);
+            int totalTokens = event.has("total_tokens") ? event.get("total_tokens").asInt() : 0;
+            emitter.send(SseEmitter.event()
+                .name("complete")
+                .data(String.valueOf(totalTokens)));
+            logger.info("Session {} completed streaming with {} total LLM tokens", sessionId, totalTokens);
+        } catch (Exception e) {
+            logger.warn("Failed to parse complete event for session {}: {}", sessionId, jsonLine, e);
+        }
     }
 
     /**
@@ -349,8 +614,6 @@ public class GooseChatController {
         String message
     ) {}
 
-    public record SendMessageRequest(String message) {}
-
     public record CloseSessionResponse(
         boolean success,
         String message
@@ -362,19 +625,17 @@ public class GooseChatController {
     ) {}
 
     /**
-     * Internal session tracking record.
+     * Internal session tracking class.
      */
     private static class ConversationSession {
-        private final String id;
         private final String provider;
         private final String model;
         private final Duration inactivityTimeout;
         private volatile long lastActivity;
         private volatile int messageCount;
 
-        ConversationSession(String id, String provider, String model, 
+        ConversationSession(String provider, String model, 
                            Duration inactivityTimeout, long createdAt) {
-            this.id = id;
             this.provider = provider;
             this.model = model;
             this.inactivityTimeout = inactivityTimeout;
@@ -382,7 +643,6 @@ public class GooseChatController {
             this.messageCount = 0;
         }
 
-        String id() { return id; }
         String provider() { return provider; }
         String model() { return model; }
         Duration inactivityTimeout() { return inactivityTimeout; }

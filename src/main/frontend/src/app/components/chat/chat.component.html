@@ -1,115 +1,130 @@
-<div class="chat-container">
-  <!-- Header with session controls -->
-  <div class="chat-header">
-    <div class="header-content">
-      <div class="session-info">
-        <mat-icon class="session-icon">psychology</mat-icon>
-        <span class="session-text">
-          @if (sessionId()) {
-            <strong>Active Conversation</strong>
-            <span class="session-id">Session: {{ sessionId()?.substring(0, 8) }}...</span>
-          } @else {
-            <strong>No Active Session</strong>
-          }
-        </span>
-        @if (gooseAvailable) {
-          <span class="provider-badge">
-            <mat-icon class="provider-icon">smart_toy</mat-icon>
-            {{ gooseProvider }} · {{ gooseModel }}
+<div class="chat-layout">
+  <div class="chat-container">
+    <!-- Header with session controls -->
+    <div class="chat-header">
+      <div class="header-content">
+        <div class="session-info">
+          <mat-icon class="session-icon">psychology</mat-icon>
+          <span class="session-text">
+            @if (sessionId()) {
+              <strong>Active Conversation</strong>
+              <span class="session-id">Session: {{ sessionId()?.substring(0, 8) }}...</span>
+            } @else {
+              <strong>No Active Session</strong>
+            }
           </span>
+          @if (gooseAvailable) {
+            <span class="provider-badge">
+              <mat-icon class="provider-icon">smart_toy</mat-icon>
+              {{ gooseProvider }} · {{ gooseModel }}
+            </span>
+          }
+        </div>
+        <div class="session-actions">
+          <button
+            mat-icon-button
+            (click)="toggleActivityPanel()"
+            [matTooltip]="activityPanelCollapsed() ? 'Show activity panel' : 'Hide activity panel'"
+          >
+            <mat-icon>{{ activityPanelCollapsed() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            (click)="startNewConversation()"
+            [disabled]="isCreatingSession() || !gooseAvailable"
+            matTooltip="Start new conversation"
+            color="primary"
+          >
+            <mat-icon>add_circle</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            (click)="endConversation()"
+            [disabled]="!sessionId() || isStreaming()"
+            matTooltip="End current conversation"
+            color="warn"
+          >
+            <mat-icon>stop_circle</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="messages-container" #messagesContainer>
+      @if (messages().length === 0) {
+        <div class="welcome-message">
+          <mat-icon class="welcome-icon">psychology</mat-icon>
+          <h2>Goose Agent Chat</h2>
+          @if (gooseAvailable) {
+            <p class="status-text">Goose v{{ gooseVersion }} is ready</p>
+            <p class="provider-info">Provider: {{ gooseProvider }} | Model: {{ gooseModel }}</p>
+            @if (sessionId()) {
+              <p class="status-text info">Conversation session active - Goose will remember your conversation context</p>
+            } @else if (isCreatingSession()) {
+              <p class="status-text info">Starting new conversation...</p>
+            }
+          } @else {
+            <p class="status-text error">{{ gooseMessage || 'Goose CLI is not available' }}</p>
+          }
+        </div>
+      }
+
+      @for (message of messages(); track message.timestamp) {
+        <div class="message" [class.user-message]="message.role === 'user'"
+             [class.assistant-message]="message.role === 'assistant'">
+          <mat-card class="message-card" appearance="outlined">
+            <mat-card-content>
+              <div class="message-header">
+                <mat-icon class="message-icon">
+                  {{ message.role === 'user' ? 'person' : 'psychology' }}
+                </mat-icon>
+                <span class="message-role">{{ message.role === 'user' ? 'You' : 'Goose' }}</span>
+                @if (message.streaming) {
+                  <mat-spinner diameter="16" class="streaming-indicator"></mat-spinner>
+                }
+              </div>
+              <div class="message-content" [innerHTML]="message.content | markdown:message.streaming"></div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      }
+    </div>
+
+    <div class="input-container">
+      <mat-form-field appearance="outline" class="message-input">
+        <mat-label>Type your message...</mat-label>
+        <textarea
+          matInput
+          [value]="userInput()"
+          (input)="onInputChange($event)"
+          (keypress)="onKeyPress($event)"
+          [disabled]="isStreaming() || !gooseAvailable || !sessionId()"
+          rows="3"
+          placeholder="Ask Goose anything..."
+        ></textarea>
+      </mat-form-field>
+      <button
+        mat-fab
+        extended
+        color="primary"
+        (click)="sendMessage()"
+        [disabled]="!userInput().trim() || isStreaming() || !gooseAvailable || !sessionId()"
+        class="send-button"
+      >
+        @if (isStreaming()) {
+          <mat-spinner diameter="24"></mat-spinner>
+        } @else {
+          <mat-icon>send</mat-icon>
         }
-      </div>
-      <div class="session-actions">
-        <button
-          mat-icon-button
-          (click)="startNewConversation()"
-          [disabled]="isCreatingSession() || !gooseAvailable"
-          matTooltip="Start new conversation"
-          color="primary"
-        >
-          <mat-icon>add_circle</mat-icon>
-        </button>
-        <button
-          mat-icon-button
-          (click)="endConversation()"
-          [disabled]="!sessionId() || isStreaming()"
-          matTooltip="End current conversation"
-          color="warn"
-        >
-          <mat-icon>stop_circle</mat-icon>
-        </button>
-      </div>
+        {{ isStreaming() ? 'Sending...' : 'Send' }}
+      </button>
     </div>
   </div>
 
-  <div class="messages-container" #messagesContainer>
-    @if (messages().length === 0) {
-      <div class="welcome-message">
-        <mat-icon class="welcome-icon">psychology</mat-icon>
-        <h2>Goose Agent Chat</h2>
-        @if (gooseAvailable) {
-          <p class="status-text">Goose v{{ gooseVersion }} is ready</p>
-          <p class="provider-info">Provider: {{ gooseProvider }} | Model: {{ gooseModel }}</p>
-          @if (sessionId()) {
-            <p class="status-text info">Conversation session active - Goose will remember your conversation context</p>
-          } @else if (isCreatingSession()) {
-            <p class="status-text info">Starting new conversation...</p>
-          }
-        } @else {
-          <p class="status-text error">{{ gooseMessage || 'Goose CLI is not available' }}</p>
-        }
-      </div>
-    }
-
-    @for (message of messages(); track message.timestamp) {
-      <div class="message" [class.user-message]="message.role === 'user'"
-           [class.assistant-message]="message.role === 'assistant'">
-        <mat-card class="message-card" appearance="outlined">
-          <mat-card-content>
-            <div class="message-header">
-              <mat-icon class="message-icon">
-                {{ message.role === 'user' ? 'person' : 'psychology' }}
-              </mat-icon>
-              <span class="message-role">{{ message.role === 'user' ? 'You' : 'Goose' }}</span>
-              @if (message.streaming) {
-                <mat-spinner diameter="16" class="streaming-indicator"></mat-spinner>
-              }
-            </div>
-            <div class="message-content" [innerHTML]="message.content | markdown"></div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    }
-  </div>
-
-  <div class="input-container">
-    <mat-form-field appearance="outline" class="message-input">
-      <mat-label>Type your message...</mat-label>
-      <textarea
-        matInput
-        [value]="userInput()"
-        (input)="onInputChange($event)"
-        (keypress)="onKeyPress($event)"
-        [disabled]="isStreaming() || !gooseAvailable || !sessionId()"
-        rows="3"
-        placeholder="Ask Goose anything..."
-      ></textarea>
-    </mat-form-field>
-    <button
-      mat-fab
-      extended
-      color="primary"
-      (click)="sendMessage()"
-      [disabled]="!userInput().trim() || isStreaming() || !gooseAvailable || !sessionId()"
-      class="send-button"
-    >
-      @if (isStreaming()) {
-        <mat-spinner diameter="24"></mat-spinner>
-      } @else {
-        <mat-icon>send</mat-icon>
-      }
-      {{ isStreaming() ? 'Sending...' : 'Send' }}
-    </button>
-  </div>
+  <!-- Activity Panel -->
+  <app-activity-panel
+    [activities]="activities()"
+    [collapsed]="activityPanelCollapsed()"
+    (collapseToggle)="toggleActivityPanel()"
+  />
 </div>
-

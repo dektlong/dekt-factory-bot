@@ -1,4 +1,4 @@
-import { Component, signal, effect, ViewChild, ElementRef } from '@angular/core';
+import { Component, signal, effect, ViewChild, ElementRef, computed } from '@angular/core';
 
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ChatService, ChatMessage, HealthInfo } from '../../services/chat.service';
 import { MarkdownPipe } from '../../pipes/markdown.pipe';
+import { ActivityPanelComponent } from '../activity-panel/activity-panel.component';
 
 @Component({
   selector: 'app-chat',
@@ -23,7 +24,8 @@ import { MarkdownPipe } from '../../pipes/markdown.pipe';
     MatCardModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MarkdownPipe
+    MarkdownPipe,
+    ActivityPanelComponent
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
@@ -37,6 +39,10 @@ export class ChatComponent {
   protected healthInfo = signal<HealthInfo | null>(null);
   protected sessionId = signal<string | null>(null);
   protected isCreatingSession = signal(false);
+  protected activityPanelCollapsed = signal(false);
+  
+  // Expose activities from the service
+  protected activities = computed(() => this.chatService.activities());
 
   constructor(
     private chatService: ChatService,
@@ -158,6 +164,10 @@ export class ChatComponent {
     }
   }
 
+  protected toggleActivityPanel(): void {
+    this.activityPanelCollapsed.update(v => !v);
+  }
+
   protected sendMessage(): void {
     const prompt = this.userInput().trim();
     const currentSessionId = this.sessionId();
@@ -165,6 +175,12 @@ export class ChatComponent {
     if (!prompt || this.isStreaming() || !currentSessionId) {
       return;
     }
+
+    // Clear activities for new message
+    this.chatService.clearActivities();
+    
+    // Auto-expand activity panel when streaming starts
+    this.activityPanelCollapsed.set(false);
 
     // Add user message
     const userMessage: ChatMessage = {
@@ -185,9 +201,10 @@ export class ChatComponent {
     };
     this.messages.update(msgs => [...msgs, assistantMessage]);
 
-    // Stream the response
+    // Stream the response with token-level updates
     this.chatService.sendMessage(prompt, currentSessionId).subscribe({
-      next: (chunk: string) => {
+      next: (token: string) => {
+        // Append token directly - no newline needed for token-level streaming
         this.messages.update(msgs => {
           const lastMsg = msgs[msgs.length - 1];
           if (lastMsg.role === 'assistant') {
@@ -195,7 +212,7 @@ export class ChatComponent {
               ...msgs.slice(0, -1),
               {
                 ...lastMsg,
-                content: lastMsg.content + chunk + '\n'
+                content: lastMsg.content + token
               }
             ];
           }
