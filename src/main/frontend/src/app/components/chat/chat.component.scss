@@ -222,7 +222,6 @@
 }
 
 .message-content {
-  white-space: pre-wrap;
   word-wrap: break-word;
   font: var(--mat-sys-body-medium);
   line-height: 1.5;
@@ -230,6 +229,10 @@
   &:empty::after {
     content: '\00a0';
     animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  markdown {
+    display: block;
   }
 
   // Markdown elements styling

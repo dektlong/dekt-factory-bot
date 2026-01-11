@@ -8,8 +8,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MarkdownComponent } from 'ngx-markdown';
 import { ChatService, ChatMessage, HealthInfo } from '../../services/chat.service';
-import { MarkdownPipe } from '../../pipes/markdown.pipe';
 import { ActivityPanelComponent } from '../activity-panel/activity-panel.component';
 
 @Component({
@@ -24,7 +24,7 @@ import { ActivityPanelComponent } from '../activity-panel/activity-panel.compone
     MatCardModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MarkdownPipe,
+    MarkdownComponent,
     ActivityPanelComponent
   ],
   templateUrl: './chat.component.html',

@@ -83,7 +83,9 @@
                   <mat-spinner diameter="16" class="streaming-indicator"></mat-spinner>
                 }
               </div>
-              <div class="message-content" [innerHTML]="message.content | markdown:message.streaming"></div>
+              <div class="message-content">
+                <markdown [data]="message.content"></markdown>
+              </div>
             </mat-card-content>
           </mat-card>
         </div>
