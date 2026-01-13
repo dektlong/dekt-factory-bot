@@ -2,6 +2,8 @@
 
 A full-stack web application providing a chat interface for interacting with [Goose AI agent](https://github.com/block/goose). Built with Spring Boot and Angular, featuring real-time streaming responses and Material Design 3 UI.
 
+> **📘 [Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
+
 ## Features
 
 - **Multi-turn Conversations**: Maintains conversation context across messages
