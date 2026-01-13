@@ -1,0 +1,90 @@
+<div class="config-panel" [class.collapsed]="collapsed()">
+  <div class="panel-header">
+    <button
+      mat-icon-button
+      (click)="toggleCollapse()"
+      [matTooltip]="collapsed() ? 'Expand config panel' : 'Collapse config panel'"
+    >
+      <mat-icon>{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+    </button>
+    <div class="header-content">
+      <mat-icon class="header-icon">settings</mat-icon>
+      <span class="header-title">Configuration</span>
+    </div>
+  </div>
+
+  @if (!collapsed()) {
+    <div class="panel-content">
+      @if (loading()) {
+        <div class="loading-state">
+          <mat-spinner diameter="24"></mat-spinner>
+          <p>Loading configuration...</p>
+        </div>
+      } @else if (error()) {
+        <div class="error-state">
+          <mat-icon class="error-icon">error_outline</mat-icon>
+          <p>{{ error() }}</p>
+        </div>
+      } @else if (!hasContent()) {
+        <div class="empty-state">
+          <mat-icon class="empty-icon">info_outline</mat-icon>
+          <p>No skills or MCP servers configured</p>
+          <p class="empty-hint">Add skills and MCP servers to .goose-config.yml</p>
+        </div>
+      } @else {
+        <!-- Skills Section -->
+        @if (hasSkills()) {
+          <div class="section">
+            <div class="section-header">
+              <mat-icon class="section-icon">school</mat-icon>
+              <span class="section-title">Skills</span>
+              <span class="section-count">{{ skills().length }}</span>
+            </div>
+            <div class="items-list">
+              @for (skill of skills(); track skill.name) {
+                <div class="item" [matTooltip]="getSkillTooltip(skill)" matTooltipPosition="right">
+                  <mat-icon class="item-icon">{{ getSkillIcon(skill) }}</mat-icon>
+                  <div class="item-content">
+                    <span class="item-name">{{ skill.name }}</span>
+                    @if (skill.description) {
+                      <span class="item-description">{{ skill.description }}</span>
+                    }
+                  </div>
+                  <span class="item-badge" [class.git]="skill.source === 'git'" 
+                        [class.file]="skill.source === 'file'">
+                    {{ getSkillSourceLabel(skill) }}
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- MCP Servers Section -->
+        @if (hasMcpServers()) {
+          <div class="section">
+            <div class="section-header">
+              <mat-icon class="section-icon">dns</mat-icon>
+              <span class="section-title">MCP Servers</span>
+              <span class="section-count">{{ mcpServers().length }}</span>
+            </div>
+            <div class="items-list">
+              @for (server of mcpServers(); track server.name) {
+                <div class="item" [matTooltip]="getMcpServerTooltip(server)" matTooltipPosition="right">
+                  <mat-icon class="item-icon">{{ getMcpServerIcon(server) }}</mat-icon>
+                  <div class="item-content">
+                    <span class="item-name">{{ server.name }}</span>
+                    <span class="item-description">{{ getMcpServerDetail(server) }}</span>
+                  </div>
+                  <span class="item-badge" [class.http]="server.type === 'streamable_http'">
+                    {{ getMcpServerTypeLabel(server) }}
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    </div>
+  }
+</div>
