@@ -1,9 +1,10 @@
 import { Component, signal, effect, ViewChild, ElementRef, computed } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
 
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
+import { MatIconModule, MatIconRegistry } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -50,8 +51,16 @@ export class ChatComponent {
 
   constructor(
     private chatService: ChatService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private matIconRegistry: MatIconRegistry,
+    private domSanitizer: DomSanitizer
   ) {
+    // Register custom goose icon
+    this.matIconRegistry.addSvgIcon(
+      'goose',
+      this.domSanitizer.bypassSecurityTrustResourceUrl('/goose-svgrepo-com.svg')
+    );
+
     // Check Goose availability on init
     this.chatService.checkHealth().then(health => {
       this.healthInfo.set(health);
