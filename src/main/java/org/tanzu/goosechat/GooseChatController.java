@@ -55,6 +55,7 @@ public class GooseChatController {
     private static final String SESSION_PREFIX = "chat-";
     
     private final GooseExecutor executor;
+    private final GooseConfigInjector configInjector;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     
@@ -66,8 +67,9 @@ public class GooseChatController {
         return t;
     });
 
-    public GooseChatController(GooseExecutor executor) {
+    public GooseChatController(GooseExecutor executor, GooseConfigInjector configInjector) {
         this.executor = executor;
+        this.configInjector = configInjector;
         logger.info("GooseChatController initialized with Goose native session support");
         
         // Schedule periodic session cleanup
@@ -204,6 +206,9 @@ public class GooseChatController {
                 // Build options for this session
                 // Priority: 1. GenAI service (if available), 2. Session config, 3. Environment
                 GooseOptions options = buildGooseOptions(session);
+
+                // Inject OAuth tokens for authenticated MCP servers before execution
+                configInjector.injectOAuthTokens(sessionId);
 
                 // Execute Goose with streaming JSON output for token-level streaming
                 boolean isFirstMessage = session.messageCount() == 0;

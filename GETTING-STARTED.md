@@ -7,6 +7,7 @@ This guide walks you through customizing Goose Agent Chat for your environment. 
 - [Configuration Overview](#configuration-overview)
 - [Configuring LLM Providers](#configuring-llm-providers)
 - [Adding MCP Servers](#adding-mcp-servers)
+- [OAuth2-Protected MCP Servers](#oauth2-protected-mcp-servers)
 - [Configuring Skills](#configuring-skills)
 - [Building and Deploying](#building-and-deploying)
 - [Cloud Foundry Deployment](#cloud-foundry-deployment)
@@ -127,6 +128,125 @@ mcpServers:
 ```
 
 > **Note:** For Cloud Foundry deployments, prefer `streamable_http` servers since `stdio` servers may require additional runtimes (Node.js, Python) that aren't included in the standard Java buildpack.
+
+---
+
+## OAuth2-Protected MCP Servers
+
+Some MCP servers require user authentication via OAuth2. Goose Agent Chat supports the [MCP Authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) with OAuth 2.1 and PKCE.
+
+### How It Works
+
+1. **Discovery**: When you add an MCP server with `requiresAuth: true`, the application discovers OAuth endpoints automatically
+2. **User Consent**: Users see an "OAuth Connect" button in the UI for protected servers
+3. **Authorization**: Users are redirected to the authorization server (e.g., GitHub) to grant access
+4. **Token Management**: Tokens are stored server-side and automatically refreshed
+
+### Configuration Options
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `requiresAuth` | Enable OAuth2 authentication | Yes |
+| `clientId` | Pre-registered OAuth client ID | For servers without dynamic registration |
+| `clientSecret` | OAuth client secret | For confidential clients |
+| `scopes` | Space-separated OAuth scopes | Optional (auto-discovered if not set) |
+
+### Example: GitHub MCP Server
+
+GitHub's remote MCP server requires OAuth authentication:
+
+#### Step 1: Create a GitHub OAuth App
+
+1. Go to https://github.com/settings/developers
+2. Click "New OAuth App"
+3. Set the callback URL to: `https://your-app.apps.example.com/oauth/callback`
+4. Note the Client ID and generate a Client Secret
+
+#### Step 2: Configure the MCP Server
+
+```yaml
+# .goose-config.yml
+mcpServers:
+  - name: github
+    type: streamable_http
+    url: "https://api.githubcopilot.com/mcp/"
+    requiresAuth: true
+    clientId: ${GITHUB_OAUTH_CLIENT_ID}
+    clientSecret: ${GITHUB_OAUTH_CLIENT_SECRET}
+    scopes: "repo read:org user:email"
+```
+
+#### Step 3: Set Environment Variables
+
+Add to your `vars.yaml`:
+
+```yaml
+GITHUB_OAUTH_CLIENT_ID: Iv1.xxxxxxxxxxxxxxxx
+GITHUB_OAUTH_CLIENT_SECRET: your-client-secret-here
+```
+
+#### Step 4: Deploy and Connect
+
+```bash
+mvn clean package && cf push --vars-file vars.yaml
+```
+
+After deployment, the GitHub MCP server will show an "OAuth Connect" button. Click it to authorize access.
+
+### OAuth Scopes
+
+Scopes determine what permissions the OAuth token has. The application selects scopes in this priority order:
+
+1. **Explicit configuration** - `scopes` field in `.goose-config.yml` (recommended)
+2. **WWW-Authenticate header** - Scopes from the server's 401 response
+3. **Protected Resource Metadata** - From RFC 9728 discovery
+4. **Authorization Server Metadata** - From RFC 8414 discovery (broadest)
+
+For GitHub, common scopes include:
+
+| Scope | Access |
+|-------|--------|
+| `repo` | Full access to repositories (issues, PRs, code) |
+| `public_repo` | Access to public repositories only |
+| `read:org` | Read organization membership |
+| `user:email` | Read user email addresses |
+
+### Servers with Dynamic Client Registration
+
+For MCP servers that support RFC 7591 Dynamic Client Registration, you don't need `clientId` or `clientSecret`:
+
+```yaml
+mcpServers:
+  - name: my-mcp-server
+    type: streamable_http
+    url: "https://mcp-server.example.com/mcp"
+    requiresAuth: true
+    # Uses dynamic registration - no credentials needed
+```
+
+The application automatically uses a Client ID Metadata Document as the client identifier.
+
+### Troubleshooting OAuth
+
+#### "403 Forbidden" after authentication
+
+Your token doesn't have the required scopes. Add explicit scopes to your configuration:
+
+```yaml
+scopes: "repo read:org user:email"
+```
+
+Then disconnect and reconnect to get a new token with the correct permissions.
+
+#### "Invalid or expired state parameter"
+
+The OAuth session expired. Try initiating the flow again by clicking "OAuth Connect".
+
+#### OAuth server returns 404
+
+The server may not support dynamic client registration. You need to:
+1. Register an OAuth application with the provider
+2. Add `clientId` and `clientSecret` to your configuration
 
 ---
 
@@ -459,13 +579,34 @@ skills:
 
 # MCP Servers for extended capabilities
 mcpServers:
+  # Public MCP server (no authentication)
   - name: cloud-foundry
     type: streamable_http
     url: "https://cloud-foundry-mcp-server.apps.example.com/mcp"
 
+  # OAuth-protected MCP server (GitHub)
   - name: github
     type: streamable_http
-    url: "https://github-mcp-server.apps.example.com/mcp"
+    url: "https://api.githubcopilot.com/mcp/"
+    requiresAuth: true
+    clientId: ${GITHUB_OAUTH_CLIENT_ID}
+    clientSecret: ${GITHUB_OAUTH_CLIENT_SECRET}
+    scopes: "repo read:org user:email"
+  
+  # MCP server with dynamic client registration
+  - name: internal-tools
+    type: streamable_http
+    url: "https://internal-mcp.apps.example.com/mcp"
+    requiresAuth: true
+    # No clientId/clientSecret - uses dynamic registration
+```
+
+And the corresponding `vars.yaml` for secrets:
+
+```yaml
+ANTHROPIC_API_KEY: sk-ant-xxxxx
+GITHUB_OAUTH_CLIENT_ID: Iv1.xxxxxxxxxxxxxxxx
+GITHUB_OAUTH_CLIENT_SECRET: your-client-secret-here
 ```
 
 ---

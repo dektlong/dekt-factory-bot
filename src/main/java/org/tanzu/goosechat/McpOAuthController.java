@@ -41,7 +41,6 @@ public class McpOAuthController {
     private static final Logger logger = LoggerFactory.getLogger(McpOAuthController.class);
 
     private final GooseExecutor executor;
-    private final McpOAuthManager oauthManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${goose.oauth.client-name:Goose Agent Chat}")
@@ -49,11 +48,20 @@ public class McpOAuthController {
 
     // Cache for MCP server configurations
     private final Map<String, McpServerInfo> serverCache = new ConcurrentHashMap<>();
+    
+    // OAuth managers per server (keyed by serverName)
+    private final Map<String, McpOAuthManagerImpl> oauthManagers = new ConcurrentHashMap<>();
 
     public McpOAuthController(GooseExecutor executor) {
         this.executor = executor;
-        // Initialize OAuth manager with a placeholder - actual client ID URL will be determined per request
-        this.oauthManager = new McpOAuthManagerImpl("placeholder");
+    }
+    
+    /**
+     * Get or create an OAuth manager for a specific MCP server.
+     */
+    private McpOAuthManagerImpl getOrCreateOAuthManager(String serverName, String clientId, String clientSecret) {
+        return oauthManagers.computeIfAbsent(serverName, 
+            name -> new McpOAuthManagerImpl(clientId, clientSecret));
     }
 
     /**
@@ -95,7 +103,8 @@ public class McpOAuthController {
             @PathVariable String serverName,
             @RequestParam String sessionId) {
         
-        boolean authenticated = oauthManager.isAuthenticated(serverName, sessionId);
+        McpOAuthManagerImpl manager = oauthManagers.get(serverName);
+        boolean authenticated = manager != null && manager.isAuthenticated(serverName, sessionId);
         
         return ResponseEntity.ok(new AuthStatusResponse(
             serverName,
@@ -139,18 +148,39 @@ public class McpOAuthController {
             }
             
             String baseUrl = detectBaseUrl(request);
-            String clientIdUrl = baseUrl + "/oauth/client-metadata.json";
             String redirectUri = baseUrl + "/oauth/callback";
             
-            // Create a new OAuth manager with the correct client ID URL
-            McpOAuthManagerImpl manager = new McpOAuthManagerImpl(clientIdUrl);
+            // Determine client ID: use pre-registered client ID if available,
+            // otherwise use Client ID Metadata Document URL (for servers with dynamic registration)
+            String clientId;
+            String clientSecret = null;
+            if (serverInfo.hasClientCredentials()) {
+                clientId = serverInfo.clientId();
+                clientSecret = serverInfo.clientSecret();
+                logger.info("Using pre-registered client ID for server: {}", serverName);
+            } else {
+                clientId = baseUrl + "/oauth/client-metadata.json";
+                logger.info("Using Client ID Metadata Document URL for server: {}", serverName);
+            }
+            
+            // Get or create a shared OAuth manager for this server
+            McpOAuthManagerImpl manager = getOrCreateOAuthManager(serverName, clientId, clientSecret);
             
             // Discover OAuth configuration
             McpOAuthConfig config = manager.discoverOAuthConfig(serverName, serverInfo.url()).join();
             
-            // Initiate authorization
+            // Get configured scopes (if any)
+            List<String> configuredScopes = serverInfo.hasConfiguredScopes() 
+                ? serverInfo.getScopesList() 
+                : null;
+            
+            if (configuredScopes != null) {
+                logger.info("Using configured scopes for server {}: {}", serverName, configuredScopes);
+            }
+            
+            // Initiate authorization with optional scopes override
             McpOAuthManager.OAuthAuthorizationRequest authRequest = 
-                manager.initiateAuthorization(config, sessionId, redirectUri);
+                manager.initiateAuthorization(config, sessionId, redirectUri, configuredScopes);
             
             logger.info("Generated auth URL for server: {}", serverName);
             
@@ -193,8 +223,16 @@ public class McpOAuthController {
         logger.info("Received OAuth callback with state: {}", state);
         
         try {
+            // Find the OAuth manager that has this state
+            McpOAuthManagerImpl manager = findManagerByState(state);
+            if (manager == null) {
+                logger.error("No OAuth manager found for state: {}", state);
+                return ResponseEntity.ok(buildCallbackHtml(false, "Token exchange failed", 
+                    "Invalid or expired state parameter"));
+            }
+            
             // Exchange code for tokens
-            McpOAuthTokens tokens = oauthManager.exchangeCodeForTokens(state, code).join();
+            McpOAuthTokens tokens = manager.exchangeCodeForTokens(state, code).join();
             
             logger.info("Successfully obtained tokens for server: {}", tokens.serverName());
             
@@ -205,6 +243,18 @@ public class McpOAuthController {
             return ResponseEntity.ok(buildCallbackHtml(false, "Token exchange failed", e.getMessage()));
         }
     }
+    
+    /**
+     * Find the OAuth manager that contains the given state.
+     */
+    private McpOAuthManagerImpl findManagerByState(String state) {
+        for (McpOAuthManagerImpl manager : oauthManagers.values()) {
+            if (manager.getOAuthState(state).isPresent()) {
+                return manager;
+            }
+        }
+        return null;
+    }
 
     /**
      * API endpoint for processing OAuth callback (called from frontend).
@@ -214,7 +264,17 @@ public class McpOAuthController {
         logger.info("Processing OAuth callback for state: {}", request.state());
         
         try {
-            McpOAuthTokens tokens = oauthManager.exchangeCodeForTokens(request.state(), request.code()).join();
+            // Find the OAuth manager that has this state
+            McpOAuthManagerImpl manager = findManagerByState(request.state());
+            if (manager == null) {
+                return ResponseEntity.ok(new CallbackResponse(
+                    false,
+                    null,
+                    "Invalid or expired state parameter"
+                ));
+            }
+            
+            McpOAuthTokens tokens = manager.exchangeCodeForTokens(request.state(), request.code()).join();
             
             return ResponseEntity.ok(new CallbackResponse(
                 true,
@@ -246,7 +306,10 @@ public class McpOAuthController {
         
         logger.info("Disconnecting OAuth for server: {} session: {}", serverName, sessionId);
         
-        oauthManager.revokeTokens(serverName, sessionId);
+        McpOAuthManagerImpl manager = oauthManagers.get(serverName);
+        if (manager != null) {
+            manager.revokeTokens(serverName, sessionId);
+        }
         
         return ResponseEntity.ok(new DisconnectResponse(true, "Disconnected successfully"));
     }
@@ -255,7 +318,11 @@ public class McpOAuthController {
      * Get the access token for an MCP server (internal use).
      */
     public Optional<String> getAccessToken(String serverName, String sessionId) {
-        return oauthManager.getAccessToken(serverName, sessionId);
+        McpOAuthManagerImpl manager = oauthManagers.get(serverName);
+        if (manager == null) {
+            return Optional.empty();
+        }
+        return manager.getAccessToken(serverName, sessionId);
     }
 
     /**
