@@ -10,6 +10,7 @@ A full-stack web application providing a chat interface for interacting with [Go
 - **Real-time Streaming**: SSE-based streaming of responses
 - **Material Design 3**: Modern, responsive UI using Angular Material
 - **Multi-Provider Support**: Works with Anthropic, OpenAI, Google, Databricks, and Ollama
+- **MCP OAuth2 Authentication**: Connect to OAuth-protected MCP servers with user consent flow
 - **Cloud Foundry Ready**: Deployable with the Goose buildpack
 
 ## Prerequisites
@@ -134,6 +135,11 @@ cf push --vars-file vars.yaml
 | `/api/chat/sessions/{id}/status` | GET | Check session status |
 | `/api/chat/sessions/{id}` | DELETE | Close a session |
 | `/api/diagnostics/env` | GET | View relevant environment variables |
+| `/oauth/initiate/{serverName}` | POST | Initiate OAuth flow for an MCP server |
+| `/oauth/callback` | GET | OAuth callback handler |
+| `/oauth/status/{serverName}` | GET | Check OAuth authentication status |
+| `/oauth/disconnect/{serverName}` | POST | Revoke OAuth tokens for an MCP server |
+| `/oauth/client-metadata.json` | GET | Client ID Metadata Document for dynamic registration |
 
 ## Configuration
 
