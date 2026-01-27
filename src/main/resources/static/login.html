@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign In - Goose Agent Chat</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Roboto', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 24px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 48px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+        .login-icon {
+            font-size: 64px;
+            color: #667eea;
+            margin-bottom: 16px;
+        }
+        .login-title {
+            font-size: 28px;
+            font-weight: 500;
+            color: #212121;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            font-size: 14px;
+            color: #757575;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .form-field {
+            position: relative;
+        }
+        .form-field input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: 'Roboto', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-field input[type="password"]:focus {
+            border-color: #667eea;
+        }
+        .login-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 14px 32px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        .login-button:hover {
+            background: #5a6fd6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .login-button .material-icons {
+            font-size: 20px;
+        }
+        .divider {
+            display: none;
+            align-items: center;
+            gap: 16px;
+            margin: 8px 0;
+            color: #9e9e9e;
+            font-size: 13px;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-top: 1px solid #e0e0e0;
+        }
+        .sso-button {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 14px 32px;
+            background: #424242;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        .sso-button:hover {
+            background: #212121;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .sso-button .material-icons {
+            font-size: 20px;
+        }
+        .error-message {
+            display: none;
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .login-footer {
+            margin-top: 24px;
+            font-size: 12px;
+            color: #9e9e9e;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="material-icons login-icon">psychology</div>
+        <h1 class="login-title">Goose Agent Chat</h1>
+        <p class="login-subtitle">
+            Enter the access code to start chatting with your AI agent.
+        </p>
+        <div class="error-message" id="errorMsg">Invalid access code. Please try again.</div>
+        <form class="login-form" action="/auth/login" method="post">
+            <input type="hidden" name="username" value="user">
+            <div class="form-field">
+                <input type="password" name="password" placeholder="Access code" required autofocus>
+            </div>
+            <button type="submit" class="login-button">
+                <span class="material-icons">login</span>
+                Sign in
+            </button>
+        </form>
+        <div class="divider" id="ssoDivider">or</div>
+        <a href="/oauth2/authorization/sso" class="sso-button" id="ssoBtn">
+            <span class="material-icons">corporate_fare</span>
+            <span id="ssoCta">Sign in with SSO</span>
+        </a>
+        <p class="login-footer">Powered by Goose AI on Tanzu Platform</p>
+    </div>
+    <script>
+        // Show error message if redirected after failed login
+        if (window.location.search.includes('error')) {
+            document.getElementById('errorMsg').style.display = 'block';
+        }
+
+        // Detect SSO provider and show SSO button if available
+        async function detectProvider() {
+            try {
+                const res = await fetch('/auth/provider', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data && data.provider !== 'none' && data.registrationId) {
+                    document.getElementById('ssoDivider').style.display = 'flex';
+                    var ssoBtn = document.getElementById('ssoBtn');
+                    ssoBtn.style.display = 'inline-flex';
+                    ssoBtn.href = '/oauth2/authorization/' + data.registrationId;
+                    if (data.provider === 'cf-sso') {
+                        document.getElementById('ssoCta').textContent = 'Sign in with SSO';
+                    } else if (data.provider === 'github') {
+                        document.getElementById('ssoCta').textContent = 'Sign in with GitHub';
+                    }
+                }
+            } catch (e) {
+                // SSO not available — access code only
+            }
+        }
+        document.addEventListener('DOMContentLoaded', detectProvider);
+    </script>
+</body>
+</html>

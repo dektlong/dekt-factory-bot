@@ -25,6 +25,14 @@
     font-weight: 500;
     animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s backwards;
   }
+
+  .toolbar-spacer {
+    flex: 1;
+  }
+
+  .user-menu-button {
+    animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.3s backwards;
+  }
 }
 
 .app-content {
