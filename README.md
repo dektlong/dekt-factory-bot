@@ -161,14 +161,28 @@ All requests require authentication. There are two login methods:
 
 ### Configuring the access code
 
-Set the `APP_AUTH_SECRET` environment variable. Locally:
+The access code defaults to `changeme`. To override it, set the `APP_AUTH_SECRET` environment variable.
+
+**Locally:**
 
 ```bash
 export APP_AUTH_SECRET=my-secret-code
 ./mvnw spring-boot:run
 ```
 
-For Cloud Foundry, provide it in a vars file or via CredHub:
+**Cloud Foundry:**
+
+Add the variable to your `manifest.yml`:
+
+```yaml
+applications:
+  - name: goose-agent-chat
+    # ... other config ...
+    env:
+      APP_AUTH_SECRET: ((APP_AUTH_SECRET))
+```
+
+Then provide the value via a vars file or CredHub:
 
 ```yaml
 # vars.yaml
@@ -179,7 +193,12 @@ APP_AUTH_SECRET: my-secret-code
 cf push --vars-file vars.yaml
 ```
 
-The default value is `changeme` if the variable is not set.
+Alternatively, set it directly after deployment:
+
+```bash
+cf set-env goose-agent-chat APP_AUTH_SECRET my-secret-code
+cf restage goose-agent-chat
+```
 
 ### Enabling SSO on Cloud Foundry
 

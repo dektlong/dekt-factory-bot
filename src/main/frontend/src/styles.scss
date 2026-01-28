@@ -1,4 +1,3 @@
-
 // Include theming for Angular Material with `mat.theme()`.
 // This Sass mixin will define CSS variables that are used for styling Angular Material
 // components according to the Material 3 design spec.
@@ -6,8 +5,13 @@
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
+// Import the shared theme CSS custom properties
+// Note: @import must come after @use in Sass
+@import 'theme.css';
+
 html {
-  // Goose theme - using teal/amber palette for a distinctive look
+  // Goose theme - using cyan/orange palette for a distinctive look
+  // This generates the --mat-sys-* variables that Angular Material components use
   @include mat.theme((
     color: (
       primary: mat.$cyan-palette,
@@ -16,6 +20,43 @@ html {
     typography: Roboto,
     density: 0,
   ));
+
+  // Override Angular Material's generated variables with our shared theme values
+  // This ensures consistency between the login page and Angular app
+  --mat-sys-primary: var(--app-color-primary);
+  --mat-sys-on-primary: var(--app-color-on-primary);
+  --mat-sys-primary-container: var(--app-color-primary-container);
+  --mat-sys-on-primary-container: var(--app-color-on-primary-container);
+
+  --mat-sys-secondary: var(--app-color-secondary);
+  --mat-sys-on-secondary: var(--app-color-on-secondary);
+  --mat-sys-secondary-container: var(--app-color-secondary-container);
+  --mat-sys-on-secondary-container: var(--app-color-on-secondary-container);
+
+  --mat-sys-tertiary: var(--app-color-tertiary);
+  --mat-sys-on-tertiary: var(--app-color-on-tertiary);
+  --mat-sys-tertiary-container: var(--app-color-tertiary-container);
+  --mat-sys-on-tertiary-container: var(--app-color-on-tertiary-container);
+
+  --mat-sys-surface: var(--app-color-surface);
+  --mat-sys-surface-dim: var(--app-color-surface-dim);
+  --mat-sys-surface-bright: var(--app-color-surface-bright);
+  --mat-sys-surface-container-lowest: var(--app-color-surface-container-lowest);
+  --mat-sys-surface-container-low: var(--app-color-surface-container-low);
+  --mat-sys-surface-container: var(--app-color-surface-container);
+  --mat-sys-surface-container-high: var(--app-color-surface-container-high);
+  --mat-sys-surface-container-highest: var(--app-color-surface-container-highest);
+
+  --mat-sys-on-surface: var(--app-color-on-surface);
+  --mat-sys-on-surface-variant: var(--app-color-on-surface-variant);
+
+  --mat-sys-outline: var(--app-color-outline);
+  --mat-sys-outline-variant: var(--app-color-outline-variant);
+
+  --mat-sys-error: var(--app-color-error);
+  --mat-sys-on-error: var(--app-color-on-error);
+  --mat-sys-error-container: var(--app-color-error-container);
+  --mat-sys-on-error-container: var(--app-color-on-error-container);
 }
 
 body {
@@ -34,7 +75,6 @@ body {
   // Reset the user agent margin.
   margin: 0;
 }
-/* You can add global styles to this file, and also import other style files */
 
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }

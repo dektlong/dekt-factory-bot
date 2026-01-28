@@ -6,11 +6,13 @@ applications:
     buildpacks:
       - https://github.com/cpage-pivotal/goose-buildpack
       - java_buildpack_offline
-    services:
-      - gpt-oss-120b
     env:
       JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+ } }'
       GOOSE_ENABLED: true
-      APP_AUTH_SECRET: ((APP_AUTH_SECRET))
       # Provider/model configuration is in .goose-config.yml (src/main/resources)
-      # API key is provided by the bound GenAI service (gpt-oss-120b)
+      # API key for the configured provider (set via CredHub or cf set-env):
+      # ANTHROPIC_API_KEY: ((ANTHROPIC_API_KEY))
+      OPENAI_API_KEY: ((OPENAI_API_KEY))
+      # GOOGLE_API_KEY: ((GOOGLE_API_KEY))
+      # DATABRICKS_HOST: ((DATABRICKS_HOST))
+      # DATABRICKS_TOKEN: ((DATABRICKS_TOKEN))

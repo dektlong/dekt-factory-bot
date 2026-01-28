@@ -5,147 +5,244 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sign In - Goose Agent Chat</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: 'Roboto', sans-serif;
+            font: var(--app-typescale-body-large);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: var(--app-color-surface);
             padding: 24px;
         }
+
         .login-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 48px;
-            max-width: 420px;
+            background-color: var(--app-color-surface-container-lowest);
+            border-radius: var(--app-shape-corner-extra-large);
+            box-shadow: var(--app-elevation-3);
+            padding: 48px 40px;
+            max-width: 400px;
             width: 100%;
             text-align: center;
         }
+
         .login-icon {
-            font-size: 64px;
-            color: #667eea;
+            font-size: 48px;
+            color: var(--app-color-primary);
             margin-bottom: 16px;
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 48;
         }
+
         .login-title {
-            font-size: 28px;
-            font-weight: 500;
-            color: #212121;
+            font: var(--app-typescale-headline-medium);
+            color: var(--app-color-on-surface);
             margin-bottom: 8px;
         }
+
         .login-subtitle {
-            font-size: 14px;
-            color: #757575;
+            font: var(--app-typescale-body-medium);
+            color: var(--app-color-on-surface-variant);
             margin-bottom: 32px;
-            line-height: 1.5;
         }
+
         .login-form {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 24px;
         }
+
+        /* MD3 Outlined Text Field */
         .form-field {
             position: relative;
         }
+
         .form-field input[type="password"] {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            font-family: 'Roboto', sans-serif;
+            padding: 16px;
+            border: 1px solid var(--app-color-outline);
+            border-radius: var(--app-shape-corner-small);
+            font: var(--app-typescale-body-large);
+            background-color: transparent;
+            color: var(--app-color-on-surface);
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color var(--app-motion-duration-short) var(--app-motion-easing-standard);
+            caret-color: var(--app-color-primary);
         }
+
+        .form-field input[type="password"]::placeholder {
+            color: var(--app-color-on-surface-variant);
+        }
+
+        .form-field input[type="password"]:hover {
+            border-color: var(--app-color-on-surface);
+        }
+
         .form-field input[type="password"]:focus {
-            border-color: #667eea;
+            border-color: var(--app-color-primary);
+            border-width: 2px;
+            padding: 15px; /* Adjust for border width change */
         }
+
+        /* MD3 Filled Button */
         .login-button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            padding: 14px 32px;
-            background: #667eea;
-            color: white;
+            gap: 8px;
+            height: 40px;
+            padding: 0 24px;
+            background-color: var(--app-color-primary);
+            color: var(--app-color-on-primary);
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            font-family: 'Roboto', sans-serif;
+            border-radius: var(--app-shape-corner-full);
+            font: var(--app-typescale-label-large);
+            letter-spacing: 0.1px;
             cursor: pointer;
             text-decoration: none;
-            transition: background-color 0.2s, box-shadow 0.2s;
+            transition: box-shadow var(--app-motion-duration-short) var(--app-motion-easing-standard);
+            position: relative;
+            overflow: hidden;
         }
+
+        .login-button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-color: var(--app-color-on-primary);
+            opacity: 0;
+            transition: opacity var(--app-motion-duration-short) var(--app-motion-easing-standard);
+        }
+
+        .login-button:hover::before {
+            opacity: var(--app-state-hover-opacity);
+        }
+
         .login-button:hover {
-            background: #5a6fd6;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--app-elevation-1);
         }
-        .login-button .material-icons {
-            font-size: 20px;
+
+        .login-button:focus-visible {
+            outline: none;
         }
+
+        .login-button:focus-visible::before {
+            opacity: var(--app-state-focus-opacity);
+        }
+
+        .login-button:active::before {
+            opacity: var(--app-state-pressed-opacity);
+        }
+
+        .login-button .material-symbols-outlined {
+            font-size: 18px;
+        }
+
+        /* Divider */
         .divider {
             display: none;
             align-items: center;
             gap: 16px;
-            margin: 8px 0;
-            color: #9e9e9e;
-            font-size: 13px;
+            margin: 0;
+            font: var(--app-typescale-label-medium);
+            color: var(--app-color-on-surface-variant);
         }
+
         .divider::before,
         .divider::after {
             content: '';
             flex: 1;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid var(--app-color-outline-variant);
         }
+
+        /* MD3 Tonal Button (for SSO) */
         .sso-button {
             display: none;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            padding: 14px 32px;
-            background: #424242;
-            color: white;
+            gap: 8px;
+            height: 40px;
+            padding: 0 24px;
+            background-color: var(--app-color-secondary-container);
+            color: var(--app-color-on-secondary-container);
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            font-family: 'Roboto', sans-serif;
+            border-radius: var(--app-shape-corner-full);
+            font: var(--app-typescale-label-large);
+            letter-spacing: 0.1px;
             cursor: pointer;
             text-decoration: none;
-            transition: background-color 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow var(--app-motion-duration-short) var(--app-motion-easing-standard);
         }
+
+        .sso-button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-color: var(--app-color-on-secondary-container);
+            opacity: 0;
+            transition: opacity var(--app-motion-duration-short) var(--app-motion-easing-standard);
+        }
+
+        .sso-button:hover::before {
+            opacity: var(--app-state-hover-opacity);
+        }
+
         .sso-button:hover {
-            background: #212121;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--app-elevation-1);
         }
-        .sso-button .material-icons {
-            font-size: 20px;
+
+        .sso-button:focus-visible {
+            outline: none;
         }
+
+        .sso-button:focus-visible::before {
+            opacity: var(--app-state-focus-opacity);
+        }
+
+        .sso-button:active::before {
+            opacity: var(--app-state-pressed-opacity);
+        }
+
+        .sso-button .material-symbols-outlined {
+            font-size: 18px;
+        }
+
+        /* Error message using MD3 error container */
         .error-message {
             display: none;
-            background: #ffebee;
-            color: #c62828;
+            background-color: var(--app-color-error-container);
+            color: var(--app-color-on-error-container);
             padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            margin-bottom: 8px;
+            border-radius: var(--app-shape-corner-small);
+            font: var(--app-typescale-body-medium);
+            text-align: left;
         }
+
         .login-footer {
             margin-top: 24px;
-            font-size: 12px;
-            color: #9e9e9e;
+            font: var(--app-typescale-label-medium);
+            color: var(--app-color-on-surface-variant);
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <div class="material-icons login-icon">psychology</div>
+        <span class="material-symbols-outlined login-icon">psychology</span>
         <h1 class="login-title">Goose Agent Chat</h1>
         <p class="login-subtitle">
             Enter the access code to start chatting with your AI agent.
@@ -157,13 +254,13 @@
                 <input type="password" name="password" placeholder="Access code" required autofocus>
             </div>
             <button type="submit" class="login-button">
-                <span class="material-icons">login</span>
+                <span class="material-symbols-outlined">login</span>
                 Sign in
             </button>
         </form>
         <div class="divider" id="ssoDivider">or</div>
         <a href="/oauth2/authorization/sso" class="sso-button" id="ssoBtn">
-            <span class="material-icons">corporate_fare</span>
+            <span class="material-symbols-outlined">corporate_fare</span>
             <span id="ssoCta">Sign in with SSO</span>
         </a>
         <p class="login-footer">Powered by Goose AI on Tanzu Platform</p>

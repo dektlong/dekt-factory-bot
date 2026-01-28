@@ -9,6 +9,9 @@ src/main/frontend/node_modules/
 src/main/frontend/dist/
 src/main/frontend/.angular/
 
+# Auto-generated theme file (copied from src/main/resources/static/theme.css during build)
+src/main/frontend/src/theme.css
+
 # IDE files
 .idea/
 *.iml
