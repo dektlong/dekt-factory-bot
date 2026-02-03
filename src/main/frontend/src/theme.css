@@ -1,0 +1,110 @@
+/**
+ * Goose Agent Chat - Shared Theme
+ * 
+ * This file defines the color palette and design tokens used across
+ * both the static login page and the Angular application.
+ * 
+ * Based on Material Design 3 with a Cyan/Orange palette.
+ * 
+ * NOTE: This is the single source of truth for the theme.
+ * The Angular app imports a copy from src/main/frontend/src/theme.css
+ * which should be kept in sync with this file.
+ */
+
+:root {
+  /* ===== Color Palette ===== */
+
+  /* Primary - Cyan/Teal */
+  --app-color-primary: #00796B;
+  --app-color-on-primary: #FFFFFF;
+  --app-color-primary-container: #A7F3EC;
+  --app-color-on-primary-container: #002020;
+
+  /* Secondary - Neutral with cyan tint */
+  --app-color-secondary: #4A635F;
+  --app-color-on-secondary: #FFFFFF;
+  --app-color-secondary-container: #CCE8E2;
+  --app-color-on-secondary-container: #05201C;
+
+  /* Tertiary - Orange */
+  --app-color-tertiary: #E65100;
+  --app-color-on-tertiary: #FFFFFF;
+  --app-color-tertiary-container: #FFDBCF;
+  --app-color-on-tertiary-container: #331200;
+
+  /* Surface */
+  --app-color-surface: #F5FDFB;
+  --app-color-surface-dim: #D5DBD9;
+  --app-color-surface-bright: #F5FDFB;
+  --app-color-surface-container-lowest: #FFFFFF;
+  --app-color-surface-container-low: #EFF5F3;
+  --app-color-surface-container: #E9EFED;
+  --app-color-surface-container-high: #E3E9E7;
+  --app-color-surface-container-highest: #DEE4E1;
+
+  /* On-surface */
+  --app-color-on-surface: #171D1B;
+  --app-color-on-surface-variant: #3F4946;
+
+  /* Outline */
+  --app-color-outline: #6F7976;
+  --app-color-outline-variant: #BFC9C5;
+
+  /* Error */
+  --app-color-error: #BA1A1A;
+  --app-color-on-error: #FFFFFF;
+  --app-color-error-container: #FFDAD6;
+  --app-color-on-error-container: #410002;
+
+  /* ===== Shape Tokens ===== */
+  --app-shape-corner-none: 0px;
+  --app-shape-corner-extra-small: 4px;
+  --app-shape-corner-small: 8px;
+  --app-shape-corner-medium: 12px;
+  --app-shape-corner-large: 16px;
+  --app-shape-corner-extra-large: 28px;
+  --app-shape-corner-full: 9999px;
+
+  /* ===== Elevation Shadows ===== */
+  --app-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --app-elevation-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --app-elevation-3: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --app-elevation-4: 0 6px 10px 4px rgba(0, 0, 0, 0.15), 0 2px 3px rgba(0, 0, 0, 0.3);
+  --app-elevation-5: 0 8px 12px 6px rgba(0, 0, 0, 0.15), 0 4px 4px rgba(0, 0, 0, 0.3);
+
+  /* ===== State Layer Opacities ===== */
+  --app-state-hover-opacity: 0.08;
+  --app-state-focus-opacity: 0.12;
+  --app-state-pressed-opacity: 0.12;
+  --app-state-dragged-opacity: 0.16;
+
+  /* ===== Typography ===== */
+  --app-font-family: 'Roboto', sans-serif;
+  
+  --app-typescale-display-large: 400 57px/64px var(--app-font-family);
+  --app-typescale-display-medium: 400 45px/52px var(--app-font-family);
+  --app-typescale-display-small: 400 36px/44px var(--app-font-family);
+  
+  --app-typescale-headline-large: 400 32px/40px var(--app-font-family);
+  --app-typescale-headline-medium: 400 28px/36px var(--app-font-family);
+  --app-typescale-headline-small: 400 24px/32px var(--app-font-family);
+  
+  --app-typescale-title-large: 400 22px/28px var(--app-font-family);
+  --app-typescale-title-medium: 500 16px/24px var(--app-font-family);
+  --app-typescale-title-small: 500 14px/20px var(--app-font-family);
+  
+  --app-typescale-body-large: 400 16px/24px var(--app-font-family);
+  --app-typescale-body-medium: 400 14px/20px var(--app-font-family);
+  --app-typescale-body-small: 400 12px/16px var(--app-font-family);
+  
+  --app-typescale-label-large: 500 14px/20px var(--app-font-family);
+  --app-typescale-label-medium: 500 12px/16px var(--app-font-family);
+  --app-typescale-label-small: 500 11px/16px var(--app-font-family);
+
+  /* ===== Motion ===== */
+  --app-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --app-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --app-motion-duration-short: 150ms;
+  --app-motion-duration-medium: 250ms;
+  --app-motion-duration-long: 400ms;
+}
