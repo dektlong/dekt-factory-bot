@@ -19,3 +19,13 @@ extensions:
 session:
   # Maximum turns before requiring user input (prevents runaway sessions)
   max_turns: 100
+
+skills:
+  - name: cf-space-auditor
+    source: https://github.com/cpage-pivotal/claude-plugin-marketplace.git
+    branch: main
+    path: plugins/cf-space-auditor/skills/cf-space-auditor
+  - name: mailgun
+    source: https://github.com/cpage-pivotal/claude-plugin-marketplace.git
+    branch: main
+    path: plugins/mailgun/skills/mailgun

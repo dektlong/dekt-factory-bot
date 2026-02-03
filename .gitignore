@@ -10,7 +10,7 @@ src/main/frontend/dist/
 src/main/frontend/.angular/
 
 # Auto-generated theme file (copied from src/main/resources/static/theme.css during build)
-src/main/frontend/src/theme.css
+src/main/frontend/src/_theme.scss
 
 # IDE files
 .idea/

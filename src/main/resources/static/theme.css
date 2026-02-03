@@ -7,8 +7,8 @@
  * Based on Material Design 3 with a Cyan/Orange palette.
  * 
  * NOTE: This is the single source of truth for the theme.
- * The Angular app imports a copy from src/main/frontend/src/theme.css
- * which should be kept in sync with this file.
+ * The Angular app imports a copy from src/main/frontend/src/_theme.scss
+ * which is auto-generated during the Maven build from this file.
  */
 
 :root {

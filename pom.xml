@@ -123,31 +123,33 @@
                 </executions>
             </plugin>
 
-            <!-- Copy shared theme to Angular frontend before build -->
+            <!-- Copy shared theme to Angular frontend before build, renaming to .scss -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
+                <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>copy-theme-to-frontend</id>
                         <phase>generate-resources</phase>
                         <goals>
-                            <goal>copy-resources</goal>
+                            <goal>run</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>src/main/frontend/src</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>src/main/resources/static</directory>
-                                    <includes>
-                                        <include>theme.css</include>
-                                    </includes>
-                                    <filtering>false</filtering>
-                                </resource>
-                            </resources>
-                            <overwrite>true</overwrite>
+                            <target>
+                                <copy file="src/main/resources/static/theme.css"
+                                      tofile="src/main/frontend/src/_theme.scss"
+                                      overwrite="true"/>
+                            </target>
                         </configuration>
                     </execution>
+                </executions>
+            </plugin>
+
+            <!-- Copy Angular build output and static resources -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
                     <!-- Copy Angular build output to Spring Boot static resources -->
                     <execution>
                         <id>copy-frontend-build</id>
