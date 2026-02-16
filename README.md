@@ -2,6 +2,28 @@
 
 An AI-powered manufacturing monitoring bot that analyzes factory data, audits supply chains, and delivers actionable insights. Built with [Goose AI agent](https://github.com/block/goose), Spring Boot, and Angular -- all services hosted on **Tanzu Platform**.
 
+### Example Usage
+
+```
+You:   Check supply chain status, audit factory apps, review risk assessment,
+       and post results to Google Chat.
+
+Bot:   On it. Here's what I found:
+
+       Supply Chain Status — Health is at 94%. 2 suppliers flagged for delayed
+       shipments (Acme Corp, GlobalParts Inc). Strong momentum — up 3% from
+       last week, keep pushing for that 97% target!
+
+       Factory Audit — 12 apps scanned across 3 production lines. All apps
+       compliant. 1 recommendation: update firmware on Line-B controller.
+
+       Risk Assessment — 3 CVEs detected across factory apps. 1 critical:
+       CVE-2026-1234 in Line-B controller (outdated Spring Boot 3.2).
+       Suggested mitigation: upgrade to Spring Boot 3.4.x and patch dependencies.
+
+       Posted summary to dekt-factory space on Google Chat.
+```
+
 > **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
 
 ## Overview
