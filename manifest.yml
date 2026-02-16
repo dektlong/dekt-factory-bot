@@ -1,7 +1,7 @@
 ---
 applications:
-  - name: goose-agent-chat
-    path: target/goose-agent-chat-1.0.0.jar
+  - name: dekt-factory-portal
+    path: target/dekt-factory-bot
     memory: 2G
     buildpacks:
       - https://github.com/cpage-pivotal/goose-buildpack#bearer
@@ -9,15 +9,12 @@ applications:
     env:
       JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+ } }'
       GOOSE_ENABLED: true
-      APP_AUTH_SECRET: ((APP_AUTH_SECRET))
-      # Provider/model configuration is in .goose-config.yml (src/main/resources)
-      # API key for the configured provider (set via CredHub or cf set-env):
-      OPENAI_API_KEY: ((OPENAI_API_KEY))
-      # ANTHROPIC_API_KEY: ((ANTHROPIC_API_KEY))
-      # GOOGLE_API_KEY: ((GOOGLE_API_KEY))
-      # DATABRICKS_HOST: ((DATABRICKS_HOST))
-      # DATABRICKS_TOKEN: ((DATABRICKS_TOKEN))
-      MAILGUN_API_KEY: ((MAILGUN_API_KEY))
-      GITHUB_OAUTH_CLIENT_ID: ((GITHUB_OAUTH_CLIENT_ID))
-      GITHUB_OAUTH_CLIENT_SECRET: ((GITHUB_OAUTH_CLIENT_SECRET))
-      GOOGLE_CHAT_SPACES: ((GOOGLE_CHAT_SPACES))
+      GOOGLE_CHAT_SPACES: '{ "dekt-factory": { "space_id": "AAQA4Nr_vbE", "key": "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI", "token": "tCqHWFBEokrAKDua1JPkmfVLF3bZflfb3t2kGULaNhU"} }'
+    services:
+      - dekt-sso
+      - dekt-genai-chat
+      - dekt-db
+      - dekt-genai-embed
+      - dekt-factory-data   
+      - dekt-tanzu-platform
+

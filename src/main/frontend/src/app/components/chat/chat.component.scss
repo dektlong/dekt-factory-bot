@@ -371,27 +371,87 @@
 
 .input-container {
   display: flex;
-  gap: var(--mat-sys-spacing-3, 12px);
-  align-items: flex-end;
+  flex-direction: column;
+  gap: var(--mat-sys-spacing-2, 8px);
   padding: var(--mat-sys-spacing-2, 8px);
   background-color: var(--mat-sys-surface-container);
   border-radius: var(--mat-sys-corner-large, 16px);
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   &:focus-within {
     background-color: var(--mat-sys-surface-container-high);
   }
-  
+}
+
+.input-row {
+  display: flex;
+  gap: var(--mat-sys-spacing-2, 8px);
+  align-items: flex-end;
+
   .message-input {
     flex: 1;
     margin: 0;
-    
+
     textarea {
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
-  
-  .send-button {
+
+  .attach-pdf-btn {
+    margin-bottom: var(--mat-sys-spacing-2, 8px);
+    flex-shrink: 0;
+  }
+}
+
+.pdf-progress {
+  margin: 0 calc(-1 * var(--mat-sys-spacing-2, 8px));
+  width: calc(100% + 2 * var(--mat-sys-spacing-2, 16px));
+}
+
+.imported-pdf-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--mat-sys-spacing-2, 8px);
+  padding: var(--mat-sys-spacing-1, 4px) var(--mat-sys-spacing-2, 8px);
+  background-color: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  border-radius: var(--mat-sys-corner-medium, 8px);
+  font: var(--mat-sys-body-small);
+
+  .pdf-chip-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--mat-sys-on-secondary-container);
+  }
+
+  .pdf-chip-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .indexed-badge {
+    margin-left: var(--mat-sys-spacing-1, 4px);
+    padding: 1px 6px;
+    background-color: var(--mat-sys-tertiary);
+    color: var(--mat-sys-on-tertiary);
+    border-radius: var(--mat-sys-corner-small, 4px);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &.indexed {
+    background-color: var(--mat-sys-tertiary-container);
+    color: var(--mat-sys-on-tertiary-container);
+  }
+}
+
+.input-container .send-button {
     margin-bottom: var(--mat-sys-spacing-2, 8px);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     
@@ -406,7 +466,6 @@
     mat-spinner {
       margin-right: var(--mat-sys-spacing-2, 8px);
     }
-  }
 }
 
 // Material Design Animations

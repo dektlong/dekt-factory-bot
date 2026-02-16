@@ -70,7 +70,7 @@
       @if (messages().length === 0) {
         <div class="welcome-message">
           <mat-icon svgIcon="goose" class="welcome-icon"></mat-icon>
-          <h2>Goose Agent Chat</h2>
+          <h2>Tanzu Factory</h2>
           @if (gooseAvailable) {
             <p class="status-text">Goose v{{ gooseVersion }} is ready</p>
             <p class="provider-info">
@@ -116,24 +116,52 @@
     </div>
 
     <div class="input-container">
-      <mat-form-field appearance="outline" class="message-input">
-        <mat-label>Type your message...</mat-label>
-        <textarea
-          matInput
-          [value]="userInput()"
-          (input)="onInputChange($event)"
-          (keypress)="onKeyPress($event)"
-          [disabled]="isStreaming() || !gooseAvailable || !sessionId()"
-          rows="3"
-          placeholder="Ask Goose anything..."
-        ></textarea>
-      </mat-form-field>
+      <div class="input-row">
+        <mat-form-field appearance="outline" class="message-input">
+          <mat-label>Type your message...</mat-label>
+          <textarea
+            matInput
+            [value]="userInput()"
+            (input)="onInputChange($event)"
+            (keypress)="onKeyPress($event)"
+            [disabled]="isStreaming() || !gooseAvailable || !sessionId()"
+            rows="3"
+            placeholder="Ask Goose anything..."
+          ></textarea>
+        </mat-form-field>
+        <button
+          mat-icon-button
+          (click)="triggerPdfImport()"
+          [disabled]="isStreaming() || isImportingPdf()"
+          matTooltip="Import PDF document"
+          class="attach-pdf-btn"
+        >
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+      </div>
+      @if (isImportingPdf()) {
+        <mat-progress-bar mode="indeterminate" class="pdf-progress"></mat-progress-bar>
+      }
+      @if (importedPdf(); as pdf) {
+        <div class="imported-pdf-chip" [class.indexed]="documentIngested()">
+          <mat-icon class="pdf-chip-icon">{{ documentIngested() ? 'search' : 'description' }}</mat-icon>
+          <span class="pdf-chip-label">
+            {{ pdf.filename }} ({{ pdf.pageCount }} page(s))
+            @if (documentIngested()) {
+              <span class="indexed-badge">indexed</span>
+            }
+          </span>
+          <button mat-icon-button (click)="clearImportedPdf()" matTooltip="Remove document">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      }
       <button
         mat-fab
         extended
         color="primary"
         (click)="sendMessage()"
-        [disabled]="!userInput().trim() || isStreaming() || !gooseAvailable || !sessionId()"
+        [disabled]="(!userInput().trim() && !importedPdf()) || isStreaming() || !gooseAvailable || !sessionId()"
         class="send-button"
       >
         @if (isStreaming()) {

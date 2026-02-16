@@ -26,7 +26,11 @@ Thumbs.db
 
 # Logs
 *.log
+logs.txt
 npm-debug.log*
+
+# Backup files
+manifest.org.yml
 
 # Test output
 src/main/frontend/dist/test-out/

@@ -9,9 +9,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>org.tanzu</groupId>
-    <artifactId>goose-agent-chat</artifactId>
+    <artifactId>dekt-factory-bot</artifactId>
     <version>1.0.0</version>
-    <name>goose-agent-chat</name>
+    <name>dekt-factory-bot</name>
     <description>Web chat interface for Goose AI agent</description>
 
     <properties>
@@ -43,11 +43,26 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>org.tanzu.goose</groupId>
             <artifactId>goose-cf-wrapper</artifactId>
             <version>1.1.0</version>
         </dependency>
         <!-- java-cfenv-boot-tanzu-genai is now provided transitively by goose-cf-wrapper -->
+        <!-- Cloud Foundry service bindings: Postgres (and JDBC) from VCAP_SERVICES -->
+        <dependency>
+            <groupId>io.pivotal.cfenv</groupId>
+            <artifactId>java-cfenv-boot</artifactId>
+            <version>3.4.0</version>
+        </dependency>
 
         <!-- SSO / Spring Security -->
         <dependency>

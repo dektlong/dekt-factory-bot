@@ -56,6 +56,7 @@ public class GooseChatController {
     
     private final GooseExecutor executor;
     private final GooseConfigInjector configInjector;
+    private final DocumentService documentService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     
@@ -67,10 +68,13 @@ public class GooseChatController {
         return t;
     });
 
-    public GooseChatController(GooseExecutor executor, GooseConfigInjector configInjector) {
+    public GooseChatController(GooseExecutor executor,
+                              GooseConfigInjector configInjector,
+                              DocumentService documentService) {
         this.executor = executor;
         this.configInjector = configInjector;
-        logger.info("GooseChatController initialized with Goose native session support");
+        this.documentService = documentService;
+        logger.info("GooseChatController initialized (RAG {})", documentService.isAvailable() ? "enabled" : "disabled");
         
         // Schedule periodic session cleanup
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredSessions, 1, 1, TimeUnit.MINUTES);
@@ -133,26 +137,17 @@ public class GooseChatController {
     }
 
     /**
-     * Send a message to an existing session and stream the response via SSE.
+     * Send a message to an existing session and stream the response via SSE (GET).
      * <p>
      * Uses the native browser EventSource API (GET requests only) which handles
      * proxy buffering and chunked encoding better than fetch-based SSE parsing.
      * This is critical for Cloud Foundry's Go Router.
      * </p>
      * <p>
-     * Uses Goose CLI's {@code --output-format stream-json} for true token-level streaming.
+     * For messages that include large context (e.g. imported PDF text), use
+     * {@link #streamMessagePost} instead to avoid URL length limits.
      * </p>
-     * <p>
-     * SSE Events emitted:
-     * <ul>
-     *   <li>{@code status} - Initial processing status</li>
-     *   <li>{@code token} - Text tokens as they arrive from the LLM</li>
-     *   <li>{@code activity} - Tool calls and notifications (for activity panel)</li>
-     *   <li>{@code complete} - Completion event with token count</li>
-     *   <li>{@code error} - Error events</li>
-     * </ul>
-     * </p>
-     * 
+     *
      * @param sessionId the conversation session ID
      * @param message the message to send (URL-encoded)
      * @return SSE stream of response events
@@ -162,17 +157,88 @@ public class GooseChatController {
             @PathVariable String sessionId,
             @RequestParam String message,
             HttpServletResponse response) {
+        String effectiveMessage = prependRagContext(message);
+        return streamMessageInternal(sessionId, effectiveMessage, response);
+    }
+
+    /**
+     * Send a message with optional document context (e.g. imported PDF text) via POST.
+     * Use this when the client attaches a document so the combined payload is not
+     * limited by URL length.
+     *
+     * @param sessionId the conversation session ID
+     * @param request body with message and optional documentContext
+     * @return SSE stream of response events
+     */
+    @PostMapping(value = "/sessions/{sessionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessagePost(
+            @PathVariable String sessionId,
+            @RequestBody StreamMessageRequest request,
+            HttpServletResponse response) {
+        String message = request != null && request.message() != null ? request.message() : "";
+        String documentContext = request != null ? request.documentContext() : null;
+
+        // Try RAG first; if it adds context we're done
+        String effectiveMessage = prependRagContext(message);
+
+        // If RAG didn't add context and the client sent inline document text, use that
+        if (effectiveMessage.equals(message)
+                && documentContext != null && !documentContext.isBlank()) {
+            logger.info("Using inline document context ({} chars) for session message", documentContext.length());
+            effectiveMessage = "The user has provided the following document. "
+                    + "Use it to answer the question that follows.\n\n"
+                    + "--- DOCUMENT START ---\n" + documentContext.trim() + "\n--- DOCUMENT END ---\n\n"
+                    + "User question: " + message;
+        }
+
+        return streamMessageInternal(sessionId, effectiveMessage, response);
+    }
+
+    /**
+     * If RAG is available and documents have been ingested, retrieve the most
+     * relevant chunks for the user message and prepend them as context.
+     */
+    private String prependRagContext(String userMessage) {
+        if (!documentService.isAvailable() || !documentService.hasDocuments()) {
+            return userMessage;
+        }
+        try {
+            var chunks = documentService.retrieveRelevantChunks(userMessage, 5);
+            if (chunks.isEmpty()) {
+                return userMessage;
+            }
+            StringBuilder ctx = new StringBuilder();
+            ctx.append("Use the following document excerpts to help answer the question. ");
+            ctx.append("If the excerpts do not contain relevant information, say so.\n\n");
+            for (int i = 0; i < chunks.size(); i++) {
+                var c = chunks.get(i);
+                ctx.append("--- Excerpt ").append(i + 1);
+                if (c.filename() != null && !c.filename().isBlank()) {
+                    ctx.append(" (from ").append(c.filename()).append(")");
+                }
+                ctx.append(" ---\n").append(c.content()).append("\n\n");
+            }
+            ctx.append("---\n\nUser question: ").append(userMessage);
+            logger.info("RAG: prepended {} chunks as context ({} chars)", chunks.size(), ctx.length());
+            return ctx.toString();
+        } catch (Exception e) {
+            logger.warn("RAG retrieval failed, falling back to plain message", e);
+            return userMessage;
+        }
+    }
+
+    /**
+     * Internal SSE streaming: send effective message to session and stream response.
+     */
+    private SseEmitter streamMessageInternal(String sessionId, String message, HttpServletResponse response) {
         logger.info("Streaming message to session {}: {} chars", sessionId, message.length());
-        
-        // Disable buffering for SSE - critical for Cloud Foundry and reverse proxies
-        // Note: Do NOT set Transfer-Encoding manually - Tomcat adds it automatically
-        // and setting it twice causes "too many transfer encodings" error in Go Router
-        response.setHeader("X-Accel-Buffering", "no");  // Nginx
+
+        response.setHeader("X-Accel-Buffering", "no");
         response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
-        
+
         SseEmitter emitter = new SseEmitter(600_000L); // 10 minutes timeout
-        
+
         executorService.execute(() -> {
             Stream<String> jsonStream = null;
             try {
@@ -204,7 +270,6 @@ public class GooseChatController {
                     .data("Processing your request..."));
 
                 // Build options for this session
-                // Priority: 1. GenAI service (if available), 2. Session config, 3. Environment
                 GooseOptions options = buildGooseOptions(session);
 
                 // Inject OAuth tokens for authenticated MCP servers before execution
@@ -643,7 +708,10 @@ public class GooseChatController {
     }
 
     // Request/Response records
-    
+
+    /** Request body for POST stream: message and optional document context (e.g. PDF text). */
+    public record StreamMessageRequest(String message, String documentContext) {}
+
     public record CreateSessionRequest(
         String provider,      // anthropic, openai, google, databricks, ollama
         String model,

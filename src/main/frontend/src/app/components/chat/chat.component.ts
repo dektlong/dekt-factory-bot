@@ -9,8 +9,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MarkdownComponent } from 'ngx-markdown';
 import { ChatService, ChatMessage, HealthInfo } from '../../services/chat.service';
+import { PdfService, PdfExtractResult } from '../../services/pdf.service';
 import { ActivityPanelComponent } from '../activity-panel/activity-panel.component';
 import { ConfigPanelComponent } from '../config-panel/config-panel.component';
 
@@ -26,6 +29,8 @@ import { ConfigPanelComponent } from '../config-panel/config-panel.component';
     MatCardModule,
     MatTooltipModule,
     MatSnackBarModule,
+    MatChipsModule,
+    MatProgressBarModule,
     MarkdownComponent,
     ActivityPanelComponent,
     ConfigPanelComponent
@@ -44,13 +49,19 @@ export class ChatComponent {
   protected isCreatingSession = signal(false);
   protected activityPanelCollapsed = signal(false);
   protected configPanelCollapsed = signal(false);
-  
+  protected importedPdf = signal<PdfExtractResult | null>(null);
+  protected isImportingPdf = signal(false);
+  protected ragEnabled = signal(false);
+  protected documentIngested = signal(false);
+  #fileInput: HTMLInputElement | null = null;
+
   // Expose activities and todos from the service
   protected activities = computed(() => this.chatService.activities());
   protected todos = computed(() => this.chatService.todos());
 
   constructor(
     private chatService: ChatService,
+    private pdfService: PdfService,
     private snackBar: MatSnackBar,
     private matIconRegistry: MatIconRegistry,
     private domSanitizer: DomSanitizer
@@ -61,9 +72,13 @@ export class ChatComponent {
       this.domSanitizer.bypassSecurityTrustResourceUrl('/goose-svgrepo-com.svg')
     );
 
-    // Check Goose availability on init
+    // Check Goose availability and RAG status on init
     this.chatService.checkHealth().then(health => {
       this.healthInfo.set(health);
+    });
+    this.chatService.checkRagStatus().then(status => {
+      this.ragEnabled.set(status.ragEnabled);
+      this.documentIngested.set(status.hasDocuments);
     });
 
     // Auto-scroll when messages update with smooth animation
@@ -198,9 +213,11 @@ export class ChatComponent {
   }
 
   protected sendMessage(): void {
-    const prompt = this.userInput().trim();
+    const rawPrompt = this.userInput().trim();
+    const hasPdf = !!this.importedPdf()?.text;
+    const prompt = rawPrompt || (hasPdf ? 'Please summarize or analyze the attached document.' : '');
     const currentSessionId = this.sessionId();
-    
+
     if (!prompt || this.isStreaming() || !currentSessionId) {
       return;
     }
@@ -230,8 +247,10 @@ export class ChatComponent {
     };
     this.messages.update(msgs => [...msgs, assistantMessage]);
 
-    // Stream the response with token-level updates
-    this.chatService.sendMessage(prompt, currentSessionId).subscribe({
+    // When RAG is active the backend handles retrieval; only fall back to inline context when RAG is unavailable
+    const documentContext = (this.importedPdf()?.text && !this.ragEnabled()) ? this.importedPdf()!.text : undefined;
+    // Stream the response (POST when inline document context is needed, GET otherwise)
+    this.chatService.sendMessage(prompt, currentSessionId, documentContext).subscribe({
       next: (token: string) => {
         // Append token directly - no newline needed for token-level streaming
         this.messages.update(msgs => {
@@ -306,6 +325,8 @@ export class ChatComponent {
           return msgs;
         });
         this.isStreaming.set(false);
+        // Clear imported PDF after send so it is not re-sent with next message
+        this.clearImportedPdf();
       }
     });
   }
@@ -320,6 +341,70 @@ export class ChatComponent {
   protected onInputChange(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
     this.userInput.set(target.value);
+  }
+
+  /** Trigger hidden file input for PDF import */
+  protected triggerPdfImport(): void {
+    if (!this.#fileInput) {
+      this.#fileInput = document.createElement('input');
+      this.#fileInput.type = 'file';
+      this.#fileInput.accept = 'application/pdf,.pdf';
+      this.#fileInput.style.display = 'none';
+      this.#fileInput.addEventListener('change', (e: Event) => this.onPdfFileSelected(e));
+    }
+    this.#fileInput.value = '';
+    this.#fileInput.click();
+  }
+
+  private async onPdfFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.isImportingPdf.set(true);
+    try {
+      const result = await this.pdfService.extractTextFromFile(file);
+      this.importedPdf.set(result);
+
+      // If RAG is available, upload to backend for vectorization
+      if (this.ragEnabled()) {
+        try {
+          await this.chatService.ingestDocument(result.filename, result.text);
+          this.documentIngested.set(true);
+          this.snackBar.open(
+            `"${result.filename}" indexed for search (${result.pageCount} page(s))`,
+            'Close',
+            { duration: 4000, horizontalPosition: 'center', verticalPosition: 'bottom' }
+          );
+        } catch (err) {
+          console.error('Document ingestion failed, will use inline context', err);
+          this.snackBar.open(
+            `Imported "${result.filename}" (vector store unavailable, using inline context)`,
+            'Close',
+            { duration: 4000, horizontalPosition: 'center', verticalPosition: 'bottom' }
+          );
+        }
+      } else {
+        this.snackBar.open(
+          `Imported "${result.filename}" (${result.pageCount} page(s), ${result.text.length} chars)`,
+          'Close',
+          { duration: 4000, horizontalPosition: 'center', verticalPosition: 'bottom' }
+        );
+      }
+    } catch (err) {
+      console.error('PDF import failed', err);
+      this.snackBar.open('Failed to extract text from PDF. The file may be image-only or corrupted.', 'Close', {
+        duration: 5000,
+        horizontalPosition: 'center',
+        verticalPosition: 'bottom'
+      });
+    } finally {
+      this.isImportingPdf.set(false);
+    }
+  }
+
+  protected clearImportedPdf(): void {
+    this.importedPdf.set(null);
   }
 
   private scrollToBottom(): void {

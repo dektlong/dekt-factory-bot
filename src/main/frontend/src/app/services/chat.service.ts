@@ -199,51 +199,110 @@ export class ChatService {
 
   /**
    * Send a message to the current session with SSE streaming.
-   * 
-   * Uses the native browser EventSource API for better handling of proxy buffering
-   * and chunked encoding (especially important for Cloud Foundry's Go Router).
-   * 
-   * Uses token-level streaming from Goose CLI's --output-format stream-json.
-   * Each emitted value is a single token as it arrives from the LLM.
-   * 
+   * When documentContext is provided (e.g. imported PDF text), uses POST to avoid URL length limits.
+   *
    * SSE Events handled:
    * - `token`: Individual tokens (emitted to observer)
    * - `complete`: Stream completion with token count
    * - `status`: Processing status messages (logged)
    * - `error`: Error events
    */
-  sendMessage(message: string, sessionId: string): Observable<string> {
+  sendMessage(message: string, sessionId: string, documentContext?: string): Observable<string> {
+    const usePost = documentContext != null && documentContext.trim().length > 0;
+
+    if (usePost) {
+      return this.sendMessagePost(message, sessionId, documentContext);
+    }
+
     return new Observable(observer => {
-      // Use GET endpoint with EventSource for better streaming support
-      // EventSource handles proxy buffering and chunked encoding better than fetch
       const encodedMessage = encodeURIComponent(message);
       const url = `${this.apiUrl}/sessions/${sessionId}/stream?message=${encodedMessage}`;
-      
       const eventSource = new EventSource(url);
 
-      // Handle token events - individual tokens as they arrive
-      // Tokens are JSON-encoded strings to preserve whitespace (SSE strips leading spaces)
-      eventSource.addEventListener('token', (event: MessageEvent) => {
-        const data = event.data;
+      this.attachEventSourceHandlers(eventSource, observer);
+      return () => {
+        console.log('[SSE] Closing connection');
+        eventSource.close();
+      };
+    });
+  }
+
+  /**
+   * Send message with document context via POST and parse SSE from response body.
+   */
+  private sendMessagePost(message: string, sessionId: string, documentContext: string): Observable<string> {
+    return new Observable(observer => {
+      const url = `${this.apiUrl}/sessions/${sessionId}/stream`;
+      const body = JSON.stringify({ message, documentContext: documentContext.trim() });
+      let aborted = false;
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error(`Stream request failed: ${response.status}`);
+        }
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        if (!reader) {
+          observer.complete();
+          return;
+        }
+
+        let buffer = '';
+        const processChunk = (): Promise<void> =>
+          reader.read().then(({ done, value }) => {
+            if (aborted || done) {
+              if (done) observer.complete();
+              return;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\n/);
+            buffer = lines.pop() ?? '';
+
+            let eventType = '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                eventType = line.slice(7).trim();
+              } else if (line.startsWith('data: ') && eventType) {
+                const data = line.slice(6);
+                this.handleStreamEvent(eventType, data, observer);
+                eventType = '';
+              }
+            }
+            return processChunk();
+          });
+
+        processChunk().catch(err => {
+          if (!aborted) observer.error(err);
+        });
+      }).catch(err => {
+        if (!aborted) observer.error(err);
+      });
+
+      return () => {
+        aborted = true;
+      };
+    });
+  }
+
+  private handleStreamEvent(eventType: string, data: string, observer: { next: (t: string) => void; error: (e: Error) => void; complete: () => void }): void {
+    switch (eventType) {
+      case 'token':
         if (data && data.length > 0) {
           try {
-            // Parse JSON string to get the actual token with preserved whitespace
             const token = JSON.parse(data);
-            if (token && token.length > 0) {
-              observer.next(token);
-            }
+            if (token && token.length > 0) observer.next(token);
           } catch {
-            // Fallback: use raw data if not valid JSON
             observer.next(data);
           }
         }
-      });
-
-      // Handle activity events - tool calls and notifications
-      eventSource.addEventListener('activity', (event: MessageEvent) => {
+        break;
+      case 'activity':
         try {
-          const activityData = JSON.parse(event.data);
-          
+          const activityData = JSON.parse(data);
           const activity: ActivityEvent = {
             id: activityData.id,
             timestamp: new Date(activityData.timestamp || Date.now()),
@@ -254,71 +313,103 @@ export class ChatService {
             status: activityData.status,
             message: activityData.message
           };
-          
-          // Check if this is a todo_write tool call
-          const isTodoWrite = activity.toolName === 'todo_write' && 
-                              activity.extensionId === 'todo';
-          
+          const isTodoWrite = activity.toolName === 'todo_write' && activity.extensionId === 'todo';
           if (isTodoWrite && activity.arguments?.['content']) {
-            // Parse the todo content and update todos signal
             const todoContent = activity.arguments['content'] as string;
-            const parsedTodos = this.parseTodoContent(todoContent);
-            this._todos.set(parsedTodos);
-            // Don't add todo_write to the regular activities list
+            this._todos.set(this.parseTodoContent(todoContent));
           } else {
-            // Update activity in the list or add new one
             this._activities.update(activities => {
-              // For tool responses, update the existing tool request
               if (activity.type === 'tool_response') {
-                // Check if this is a response to a todo_write (skip it)
-                const existingActivity = activities.find(a => a.id === activity.id);
-                if (existingActivity?.toolName === 'todo_write') {
-                  return activities;
-                }
-                return activities.map(a => 
-                  a.id === activity.id ? { ...a, status: activity.status } : a
-                );
+                const existing = activities.find(a => a.id === activity.id);
+                if (existing?.toolName === 'todo_write') return activities;
+                return activities.map(a => (a.id === activity.id ? { ...a, status: activity.status } : a));
               }
-              // For new activities, add to the list
               return [...activities, activity];
             });
           }
-          
           this.activitySubject.next(activity);
         } catch (e) {
-          console.warn('Failed to parse activity event:', event.data, e);
+          console.warn('Failed to parse activity event:', data, e);
         }
-      });
-
-      // Handle completion event
-      eventSource.addEventListener('complete', () => {
-        eventSource.close();
+        break;
+      case 'complete':
         observer.complete();
-      });
+        break;
+      case 'error':
+        observer.error(new Error(data || 'Stream error'));
+        break;
+      default:
+        break;
+    }
+  }
 
-      // Handle error events from the server
-      eventSource.addEventListener('error', (event: MessageEvent) => {
-        eventSource.close();
-        observer.error(new Error(event.data || 'Stream error'));
-      });
-
-      // Handle connection errors
-      eventSource.onerror = () => {
-        // Check if the connection was closed normally (after 'complete' event)
-        if (eventSource.readyState === EventSource.CLOSED) {
-          observer.complete();
-        } else {
-          eventSource.close();
-          observer.error(new Error('Connection to server failed'));
+  private attachEventSourceHandlers(
+    eventSource: EventSource,
+    observer: { next: (t: string) => void; error: (e: Error) => void; complete: () => void }
+  ): void {
+    eventSource.addEventListener('token', (event: MessageEvent) => {
+      const data = event.data;
+      if (data && data.length > 0) {
+        try {
+          const token = JSON.parse(data);
+          if (token && token.length > 0) observer.next(token);
+        } catch {
+          observer.next(data);
         }
-      };
-
-      // Cleanup on unsubscribe
-      return () => {
-        console.log('[SSE] Closing connection');
-        eventSource.close();
-      };
+      }
     });
+
+    eventSource.addEventListener('activity', (event: MessageEvent) => {
+      try {
+        const activityData = JSON.parse(event.data);
+        const activity: ActivityEvent = {
+          id: activityData.id,
+          timestamp: new Date(activityData.timestamp || Date.now()),
+          type: activityData.type,
+          toolName: activityData.toolName,
+          extensionId: activityData.extensionId,
+          arguments: activityData.arguments,
+          status: activityData.status,
+          message: activityData.message
+        };
+        const isTodoWrite = activity.toolName === 'todo_write' && activity.extensionId === 'todo';
+        if (isTodoWrite && activity.arguments?.['content']) {
+          const todoContent = activity.arguments['content'] as string;
+          this._todos.set(this.parseTodoContent(todoContent));
+        } else {
+          this._activities.update(activities => {
+            if (activity.type === 'tool_response') {
+              const existing = activities.find(a => a.id === activity.id);
+              if (existing?.toolName === 'todo_write') return activities;
+              return activities.map(a => (a.id === activity.id ? { ...a, status: activity.status } : a));
+            }
+            return [...activities, activity];
+          });
+        }
+        this.activitySubject.next(activity);
+      } catch (e) {
+        console.warn('Failed to parse activity event:', event.data, e);
+      }
+    });
+
+    eventSource.addEventListener('complete', () => {
+      eventSource.close();
+      observer.complete();
+    });
+
+    eventSource.addEventListener('error', (event: MessageEvent) => {
+      eventSource.close();
+      observer.error(new Error(event.data || 'Stream error'));
+    });
+
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        observer.complete();
+      } else {
+        eventSource.close();
+        observer.error(new Error('Connection to server failed'));
+      }
+    };
   }
 
   /**
@@ -380,6 +471,43 @@ export class ChatService {
           message: 'Health check endpoint not reachable' 
         };
       });
+  }
+
+  // --- Document / RAG API ---
+
+  /**
+   * Upload extracted PDF text to the backend for vectorization and storage.
+   * Returns the documentId assigned by the server.
+   */
+  async ingestDocument(filename: string, text: string): Promise<string> {
+    const response = await fetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, text })
+    });
+    if (!response.ok) {
+      throw new Error(`Document ingestion failed: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || 'Unknown error during ingestion');
+    }
+    return result.documentId;
+  }
+
+  /**
+   * Check whether the RAG pipeline (embedding + Postgres) is available.
+   */
+  async checkRagStatus(): Promise<{ ragEnabled: boolean; hasDocuments: boolean }> {
+    try {
+      const response = await fetch('/api/documents/status');
+      if (!response.ok) {
+        return { ragEnabled: false, hasDocuments: false };
+      }
+      return await response.json();
+    } catch {
+      return { ragEnabled: false, hasDocuments: false };
+    }
   }
 
   /**
