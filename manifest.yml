@@ -1,7 +1,7 @@
 ---
 applications:
   - name: dekt-factory-portal
-    path: target/dekt-factory-bot
+    path: target/dekt-factory-bot.jar
     memory: 2G
     buildpacks:
       - https://github.com/cpage-pivotal/goose-buildpack#bearer
