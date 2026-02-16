@@ -1,18 +1,37 @@
-# Goose Agent Chat
+# Dekt Factory Bot
 
-A full-stack web application providing a chat interface for interacting with [Goose AI agent](https://github.com/block/goose). Built with Spring Boot and Angular, featuring real-time streaming responses and Material Design 3 UI.
+An AI-powered manufacturing monitoring bot that analyzes factory data, audits supply chains, and delivers actionable insights. Built with [Goose AI agent](https://github.com/block/goose), Spring Boot, and Angular -- all services hosted on **Tanzu Platform**.
 
-> **📘 [Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
+> **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
 
-## Features
+## Overview
 
-- **Multi-turn Conversations**: Maintains conversation context across messages
-- **Real-time Streaming**: SSE-based streaming of responses
-- **Material Design 3**: Modern, responsive UI using Angular Material
-- **Multi-Provider Support**: Works with Anthropic, OpenAI, Google, Databricks, and Ollama
-- **MCP OAuth2 Authentication**: Connect to OAuth-protected MCP servers with user consent flow
-- **Authentication**: Always-on access code auth with optional SSO when a CF identity provider is bound
-- **Cloud Foundry Ready**: Deployable with the Goose buildpack
+Dekt Factory Bot connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
+
+## Key Capabilities
+
+- **Manufacturing Data Monitoring** -- Connects to factory data via an MCP server (`dekt-factory-data`) hosted on Tanzu Platform
+- **Skills** -- Pluggable Goose skills for domain-specific analysis:
+  - `supplychain-motivator` -- Supply chain performance insights and recommendations
+  - `factory-audit` -- Factory operations auditing and compliance checks
+  - `google-chat-poster` -- Posts alerts and summaries to Google Chat spaces
+- **Document Embeddings** -- Upload and embed operational documents (PDFs) for retrieval-augmented responses, powered by a GenAI embedding service on Tanzu Platform
+- **Multi-turn Chat** -- Maintains conversation context across messages with real-time SSE streaming
+- **Material Design 3 UI** -- Modern, responsive Angular frontend
+- **Authentication** -- Access code auth with optional SSO via Tanzu Platform identity services
+
+## Tanzu Platform Services
+
+All services are bound and managed through Tanzu Platform:
+
+| Service | Description |
+|---------|-------------|
+| `dekt-genai-chat` | GenAI LLM service for chat completions |
+| `dekt-genai-embed` | GenAI embedding service for document vectorization |
+| `dekt-factory-data` | MCP server exposing live manufacturing data |
+| `dekt-db` | Database for session and document storage |
+| `dekt-sso` | SSO identity provider for user authentication |
+| `dekt-tanzu-platform` | Tanzu Platform integration service |
 
 ## Prerequisites
 
@@ -87,44 +106,54 @@ cf push --vars-file vars.yaml
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  Cloud Foundry Container                                                   │
-│                                                                            │
-│  ┌──────────────────────────────────────────────────────────────────────┐ │
-│  │  Spring Boot Application (JAR)                                        │ │
-│  │                                                                        │ │
-│  │  ┌─────────────────────┐      ┌────────────────────────────────────┐ │ │
-│  │  │  Angular SPA        │      │  REST Controllers                  │ │ │
-│  │  │  /static/*          │─────▶│  GooseChatController               │ │ │
-│  │  │  Material Design 3  │ HTTP │  ChatHealthController              │ │ │
-│  │  │                     │      │  DiagnosticsController             │ │ │
-│  │  └─────────────────────┘      └────────────────────────────────────┘ │ │
-│  │                                          │                            │ │
-│  │                                          ▼                            │ │
-│  │                               ┌────────────────────────┐              │ │
-│  │                               │  GooseExecutor         │              │ │
-│  │                               │  (goose-cf-wrapper)    │              │ │
-│  │                               │  - Session management  │              │ │
-│  │                               │  - ProcessBuilder      │              │ │
-│  │                               └────────────────────────┘              │ │
-│  │                                          │                            │ │
-│  └──────────────────────────────────────────│────────────────────────────┘ │
-│                                             │                              │
-│  ┌──────────────────────────────────────────│────────────────────────────┐ │
-│  │  Goose Buildpack (Supply)                ▼                            │ │
-│  │  /home/vcap/deps/{idx}/bin/goose ◄───────────────────────────────────│ │
-│  │  Environment: GOOSE_CLI_PATH, provider config                         │ │
-│  └───────────────────────────────────────────────────────────────────────┘ │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-                        ┌─────────────────────────┐
-                        │   LLM Provider API      │
-                        │   (Anthropic, OpenAI,   │
-                        │    Google, Databricks)  │
-                        └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Tanzu Platform (Cloud Foundry)                                             │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  dekt-factory-portal (Spring Boot + Angular)                          │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────┐      ┌─────────────────────────────────┐    │  │
+│  │  │  Angular SPA        │      │  REST Controllers               │    │  │
+│  │  │  Material Design 3  │─────▶│  GooseChatController            │    │  │
+│  │  │                     │ HTTP │  DocumentController              │    │  │
+│  │  │                     │      │  EmbeddingController             │    │  │
+│  │  └─────────────────────┘      └─────────────────────────────────┘    │  │
+│  │                                         │                             │  │
+│  │                                         ▼                             │  │
+│  │                              ┌─────────────────────────┐              │  │
+│  │                              │  Goose Agent             │              │  │
+│  │                              │  + Skills                │              │  │
+│  │                              │  + MCP Connections       │              │  │
+│  │                              └─────────────────────────┘              │  │
+│  └───────────────────────────────────────│───────────────────────────────┘  │
+│                                          │                                  │
+│  ┌───────────────────────────────────────│───────────────────────────────┐  │
+│  │  Tanzu Platform Services              ▼                               │  │
+│  │                                                                       │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
+│  │  │ dekt-genai-  │  │ dekt-genai-  │  │ dekt-factory-data         │   │  │
+│  │  │ chat (LLM)   │  │ embed        │  │ (MCP Server)              │   │  │
+│  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
+│  │                                                                       │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
+│  │  │ dekt-sso     │  │ dekt-db      │  │ dekt-tanzu-platform       │   │  │
+│  │  │ (Identity)   │  │ (Database)   │  │ (Platform Integration)    │   │  │
+│  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## Skills
+
+Skills are pluggable Goose extensions configured in `.goose-config.yml`:
+
+| Skill | Purpose |
+|-------|---------|
+| `supplychain-motivator` | Analyzes supply chain metrics and provides performance recommendations |
+| `factory-audit` | Audits factory operations for compliance and efficiency |
+| `google-chat-poster` | Posts alerts and summaries to configured Google Chat spaces |
+
+Skills are sourced from [dektlong/agent-skills](https://github.com/dektlong/agent-skills).
 
 ## API Endpoints
 
@@ -139,83 +168,8 @@ cf push --vars-file vars.yaml
 | `/api/chat/sessions/{id}/messages` | POST | Send message (returns SSE stream) |
 | `/api/chat/sessions/{id}/status` | GET | Check session status |
 | `/api/chat/sessions/{id}` | DELETE | Close a session |
-| `/api/diagnostics/env` | GET | View relevant environment variables |
-| `/oauth/initiate/{serverName}` | POST | Initiate OAuth flow for an MCP server |
-| `/oauth/callback` | GET | OAuth callback handler |
-| `/oauth/status/{serverName}` | GET | Check OAuth authentication status |
-| `/oauth/disconnect/{serverName}` | POST | Revoke OAuth tokens for an MCP server |
-| `/oauth/client-metadata.json` | GET | Client ID Metadata Document for dynamic registration |
-
-## Authentication
-
-All requests require authentication. There are two login methods:
-
-1. **Access code (always available)** — a shared secret configured via the `APP_AUTH_SECRET` environment variable. Users enter this code on the login page.
-2. **SSO (auto-detected)** — when a Cloud Foundry SSO tile (`p-identity`) is bound to the app, a "Sign in with SSO" button appears on the login page automatically. No feature flag is needed.
-
-### How it works
-
-- Spring Security is configured with form login. An in-memory user (`user`) is created with the password set to `APP_AUTH_SECRET`.
-- On page load, the login page fetches `/auth/provider` to check whether an OAuth2 client registration exists. If one is detected (via `java-cfenv-boot-pivotal-sso`), the SSO button is shown.
-- Both login methods result in a valid Spring Security session and redirect to the app.
-
-### Configuring the access code
-
-The access code defaults to `changeme`. To override it, set the `APP_AUTH_SECRET` environment variable.
-
-**Locally:**
-
-```bash
-export APP_AUTH_SECRET=my-secret-code
-./mvnw spring-boot:run
-```
-
-**Cloud Foundry:**
-
-Add the variable to your `manifest.yml`:
-
-```yaml
-applications:
-  - name: goose-agent-chat
-    # ... other config ...
-    env:
-      APP_AUTH_SECRET: ((APP_AUTH_SECRET))
-```
-
-Then provide the value via a vars file or CredHub:
-
-```yaml
-# vars.yaml
-APP_AUTH_SECRET: my-secret-code
-```
-
-```bash
-cf push --vars-file vars.yaml
-```
-
-Alternatively, set it directly after deployment:
-
-```bash
-cf set-env goose-agent-chat APP_AUTH_SECRET my-secret-code
-cf restage goose-agent-chat
-```
-
-### Enabling SSO on Cloud Foundry
-
-SSO activates automatically when a `p-identity` service instance is bound to the app. No application properties need to change.
-
-```bash
-# Create an SSO service instance (plan name may vary by foundation)
-cf create-service p-identity <plan> my-sso
-
-# Bind it to the app
-cf bind-service goose-agent-chat my-sso
-
-# Restage to pick up the new binding
-cf restage goose-agent-chat
-```
-
-Once bound, the login page will show both the access code field and a "Sign in with SSO" button. The `java-cfenv-boot-pivotal-sso` library detects the binding and auto-configures Spring Security's OAuth2 client registration.
+| `/api/documents/upload` | POST | Upload a document for embedding |
+| `/api/embeddings/search` | POST | Search embedded documents |
 
 ## Configuration
 
@@ -235,12 +189,9 @@ Once bound, the login page will show both the access code field and a "Sign in w
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `GOOGLE_API_KEY` | Google AI API key |
-| `DATABRICKS_HOST` | Databricks workspace URL |
-| `DATABRICKS_TOKEN` | Databricks access token |
 | `GOOSE_PROVIDER__TYPE` | Default provider (anthropic, openai, etc.) |
 | `GOOSE_PROVIDER__MODEL` | Default model |
 
 ## License
 
 MIT License
-
