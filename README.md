@@ -5,7 +5,7 @@ An AI-powered manufacturing monitoring bot that analyzes factory data, audits su
 ### Example Usage
 
 ```
-Check manufacturing stages and motivated supply chain status. Audit factory applications. Check for maintenance issues. Post results to Google chat.
+Check manufacturing stages and motivated supply chain status. Audit factory applications. Check for maintenance issues in the log. Post results here and in  Google chat.
 ```
 
 > **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.

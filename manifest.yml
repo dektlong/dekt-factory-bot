@@ -9,13 +9,13 @@ applications:
     env:
       JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+ } }'
       GOOSE_ENABLED: true
-      #GOOGLE_CHAT_SPACES: '{ "MY_SPACE_NAME": { "space_id": "MY_SPACE_ID", "key": "MY_SPACE_KEY", "token": "MY_SPACE_TOKEN"} }'
-      GOOGLE_CHAT_SPACES: '{ "dekt-factory": { "space_id": "AAQA4Nr_vbE", "key": "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI", "token": "tCqHWFBEokrAKDua1JPkmfVLF3bZflfb3t2kGULaNhU"} }'
+      GOOGLE_CHAT_SPACES: '{ "MY_SPACE_NAME": { "space_id": "MY_SPACE_ID", "key": "MY_SPACE_KEY", "token": "MY_SPACE_TOKEN"} }'
+
     services:
       - dekt-sso
       - dekt-genai-chat
       - dekt-genai-embed
-      - dekt-factory-data   
+      - dekt-factory-info   
       - dekt-tanzu-platform
       - dekt-db
 
