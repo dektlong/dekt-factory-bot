@@ -54,7 +54,7 @@ All services are bound and managed through Tanzu Platform:
 |---------|-------------|
 | `dekt-genai-chat` | GenAI LLM service for chat completions |
 | `dekt-genai-embed` | GenAI embedding service for document vectorization |
-| `dekt-factory-data` | MCP server exposing live manufacturing data |
+| `dekt-factory-data` | MCP server exposing live manufacturing data, using this dummy Factory Management System - https://github.com/cpage-pivotal/factory-mcp-server |
 | `dekt-db` | Database for session and document storage |
 | `dekt-sso` | SSO identity provider for user authentication |
 | `dekt-tanzu-platform` | Tanzu Platform integration service |
