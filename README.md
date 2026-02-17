@@ -28,8 +28,11 @@ Bot:   On it. Here's what I found:
 
 ## Overview
 
-Dekt Factory Bot showcases how Tanzu brings 'adult supervision' to Agentic services. 
-It connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
+Dekt Factory Bot showcases how Tanzu brings 'adult supervision' to Agentic development and deployment while interacting with existing enterprise applications. 
+
+It connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. 
+
+All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
 
 ## Key Capabilities
 
