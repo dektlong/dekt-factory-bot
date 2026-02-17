@@ -28,7 +28,8 @@ Bot:   On it. Here's what I found:
 
 ## Overview
 
-Dekt Factory Bot connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
+Dekt Factory Bot showcases how Tanzu brings 'adult supervision' to Agentic services. 
+It connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
 
 ## Key Capabilities
 
@@ -61,53 +62,8 @@ All services are bound and managed through Tanzu Platform:
 - Maven 3.8+
 - Node.js 22+ (managed by Maven during build)
 - Goose CLI (installed via buildpack or locally)
-- An API key for your chosen LLM provider
 
-## Local Development
-
-### 1. Set Environment Variables
-
-```bash
-# Set your preferred provider's API key
-export ANTHROPIC_API_KEY=your-api-key
-# Or for OpenAI:
-# export OPENAI_API_KEY=your-api-key
-
-# Set the path to Goose CLI (if not in PATH)
-export GOOSE_CLI_PATH=/path/to/goose
-```
-
-### 2. Build and Run
-
-```bash
-# Build the application (includes Angular frontend)
-./mvnw clean package
-
-# Run the application
-./mvnw spring-boot:run
-```
-
-### 3. Access the Application
-
-Open http://localhost:8080 in your browser.
-
-### Frontend Development
-
-For faster frontend development with hot reload:
-
-```bash
-# Terminal 1: Start the Spring Boot backend
-./mvnw spring-boot:run
-
-# Terminal 2: Start Angular dev server
-cd src/main/frontend
-npm install
-npm start
-```
-
-The Angular dev server runs on http://localhost:4200 and proxies API requests to the Spring Boot backend.
-
-## Cloud Foundry Deployment
+## Tanzu Deployment
 
 ### 1. Create vars.yaml
 
