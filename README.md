@@ -5,23 +5,7 @@ An AI-powered manufacturing monitoring bot that analyzes factory data, audits su
 ### Example Usage
 
 ```
-You:   Check supply chain status, audit factory apps, review risk assessment,
-       and post results to Google Chat.
-
-Bot:   On it. Here's what I found:
-
-       Supply Chain Status — Health is at 94%. 2 suppliers flagged for delayed
-       shipments (Acme Corp, GlobalParts Inc). Strong momentum — up 3% from
-       last week, keep pushing for that 97% target!
-
-       Factory Audit — 12 apps scanned across 3 production lines. All apps
-       compliant. 1 recommendation: update firmware on Line-B controller.
-
-       Risk Assessment — 3 CVEs detected across factory apps. 1 critical:
-       CVE-2026-1234 in Line-B controller (outdated Spring Boot 3.2).
-       Suggested mitigation: upgrade to Spring Boot 3.4.x and patch dependencies.
-
-       Posted summary to dekt-factory space on Google Chat.
+Check manufacturing stages and supply chain status. Audit factory applications. Check for maintenance issues. Post results to Google chat.
 ```
 
 > **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
@@ -41,7 +25,7 @@ All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MC
   - `supplychain-motivator` -- Supply chain performance insights and recommendations
   - `factory-audit` -- Factory operations auditing and compliance checks
   - `google-chat-poster` -- Posts alerts and summaries to Google Chat spaces
-- **Document Embeddings** -- Upload and embed operational documents (PDFs) for retrieval-augmented responses, powered by a GenAI embedding service on Tanzu Platform
+- **Document Embeddings** -- Upload and embed operational documents (PDFs) for retrieval-augmented responses (see: factory-maintenance-log.pdf), powered by a GenAI embedding service on Tanzu Platform
 - **Multi-turn Chat** -- Maintains conversation context across messages with real-time SSE streaming
 - **Material Design 3 UI** -- Modern, responsive Angular frontend
 - **Authentication** -- Access code auth with optional SSO via Tanzu Platform identity services
