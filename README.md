@@ -125,8 +125,8 @@ Skills are pluggable Goose extensions configured in `.goose-config.yml`:
 
 | Skill | Purpose |
 |-------|---------|
-| `supplychain-motivator` | Analyzes supply chain metrics and provides performance recommendations |
-| `factory-audit` | Audits factory operations for compliance and efficiency |
+| `supplychain-motivator` | Adds a motivation sentence to the supply chain data based on performance |
+| `factory-audit` | Audits factory applications for memory foot print |
 | `google-chat-poster` | Posts alerts and summaries to configured Google Chat spaces |
 
 Skills are sourced from [dektlong/agent-skills](https://github.com/dektlong/agent-skills).
