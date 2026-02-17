@@ -65,20 +65,15 @@ All services are bound and managed through Tanzu Platform:
 
 ## Tanzu Deployment
 
-### 1. Create vars.yaml
-
-```yaml
-ANTHROPIC_API_KEY: your-api-key
-```
-
-### 2. Deploy
-
 ```bash
 # Build the application
 ./mvnw clean package -DskipTests
 
-# Deploy to Cloud Foundry
-cf push --vars-file vars.yaml
+# Create all services in the manifest
+cf create-service
+
+# Deploy to Tanzu
+cf push
 ```
 
 ## Architecture
