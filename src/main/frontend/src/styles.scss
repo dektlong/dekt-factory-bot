@@ -10,7 +10,7 @@
 @import 'theme';
 
 html {
-  // Goose theme - using cyan/orange palette for a distinctive look
+  // Tanzu-Factory theme - using cyan/orange palette for a distinctive look
   // This generates the --mat-sys-* variables that Angular Material components use
   @include mat.theme((
     color: (

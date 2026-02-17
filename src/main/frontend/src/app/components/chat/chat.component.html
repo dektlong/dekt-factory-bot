@@ -10,7 +10,7 @@
     <div class="chat-header">
       <div class="header-content">
         <div class="session-info">
-          <mat-icon svgIcon="goose" class="session-icon"></mat-icon>
+          <mat-icon svgIcon="factory" class="session-icon"></mat-icon>
           <span class="session-text">
             @if (sessionId()) {
               <strong>Active Conversation</strong>
@@ -69,10 +69,10 @@
     <div class="messages-container" #messagesContainer>
       @if (messages().length === 0) {
         <div class="welcome-message">
-          <mat-icon svgIcon="goose" class="welcome-icon"></mat-icon>
+          <mat-icon svgIcon="factory" class="welcome-icon"></mat-icon>
           <h2>Tanzu Factory</h2>
           @if (gooseAvailable) {
-            <p class="status-text">Goose v{{ gooseVersion }} is ready</p>
+            <p class="status-text">Tanzu-Factory v{{ gooseVersion }} is ready</p>
             <p class="provider-info">
               Provider: {{ gooseProvider }} | Model: {{ gooseModel }}
               @if (isGenaiService) {
@@ -80,12 +80,12 @@
               }
             </p>
             @if (sessionId()) {
-              <p class="status-text info">Conversation session active - Goose will remember your conversation context</p>
+              <p class="status-text info">Conversation session active - Tanzu-Factory will remember your conversation context</p>
             } @else if (isCreatingSession()) {
               <p class="status-text info">Starting new conversation...</p>
             }
           } @else {
-            <p class="status-text error">{{ gooseMessage || 'Goose CLI is not available' }}</p>
+            <p class="status-text error">{{ gooseMessage || 'Tanzu-Factory agent is not available' }}</p>
           }
         </div>
       }
@@ -99,9 +99,9 @@
                 @if (message.role === 'user') {
                   <mat-icon class="message-icon">person</mat-icon>
                 } @else {
-                  <mat-icon svgIcon="goose" class="message-icon"></mat-icon>
+                  <mat-icon svgIcon="factory" class="message-icon"></mat-icon>
                 }
-                <span class="message-role">{{ message.role === 'user' ? 'You' : 'Goose' }}</span>
+                <span class="message-role">{{ message.role === 'user' ? 'You' : 'Tanzu-Factory' }}</span>
                 @if (message.streaming) {
                   <mat-spinner diameter="16" class="streaming-indicator"></mat-spinner>
                 }
@@ -126,7 +126,7 @@
             (keypress)="onKeyPress($event)"
             [disabled]="isStreaming() || !gooseAvailable || !sessionId()"
             rows="3"
-            placeholder="Ask Goose anything..."
+            placeholder="Ask Tanzu-Factory anything..."
           ></textarea>
         </mat-form-field>
         <button
@@ -141,20 +141,6 @@
       </div>
       @if (isImportingPdf()) {
         <mat-progress-bar mode="indeterminate" class="pdf-progress"></mat-progress-bar>
-      }
-      @if (importedPdf(); as pdf) {
-        <div class="imported-pdf-chip" [class.indexed]="documentIngested()">
-          <mat-icon class="pdf-chip-icon">{{ documentIngested() ? 'search' : 'description' }}</mat-icon>
-          <span class="pdf-chip-label">
-            {{ pdf.filename }} ({{ pdf.pageCount }} page(s))
-            @if (documentIngested()) {
-              <span class="indexed-badge">indexed</span>
-            }
-          </span>
-          <button mat-icon-button (click)="clearImportedPdf()" matTooltip="Remove document">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
       }
       <button
         mat-fab

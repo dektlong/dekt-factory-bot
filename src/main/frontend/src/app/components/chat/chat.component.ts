@@ -49,6 +49,9 @@ export class ChatComponent {
   protected isCreatingSession = signal(false);
   protected activityPanelCollapsed = signal(false);
   protected configPanelCollapsed = signal(false);
+  private retryCount = 0;
+  private static readonly MAX_RETRIES = 2;
+  private static readonly RETRY_DELAY_MS = 3000;
   protected importedPdf = signal<PdfExtractResult | null>(null);
   protected isImportingPdf = signal(false);
   protected ragEnabled = signal(false);
@@ -66,10 +69,10 @@ export class ChatComponent {
     private matIconRegistry: MatIconRegistry,
     private domSanitizer: DomSanitizer
   ) {
-    // Register custom goose icon
+    // Register custom factory icon
     this.matIconRegistry.addSvgIcon(
-      'goose',
-      this.domSanitizer.bypassSecurityTrustResourceUrl('/goose-svgrepo-com.svg')
+      'factory',
+      this.domSanitizer.bypassSecurityTrustResourceUrl('/factory-icon.svg')
     );
 
     // Check Goose availability and RAG status on init
@@ -153,7 +156,7 @@ export class ChatComponent {
       this.chatService.clearTodos();
       this.chatService.clearActivities();
       
-      this.snackBar.open('New Goose conversation started', 'Close', {
+      this.snackBar.open('New Tanzu-Factory conversation started', 'Close', {
         duration: 2000,
         horizontalPosition: 'center',
         verticalPosition: 'bottom'
@@ -270,7 +273,32 @@ export class ChatComponent {
       error: (error) => {
         console.error('Chat error:', error);
         
-        const errorMessage = error.message || 'Failed to get response from Goose.';
+        const errorMessage = error.message || 'Failed to get response from Tanzu-Factory.';
+        
+        // Handle server-requested retry (cold start / MCP initialization)
+        if (errorMessage === '__RETRY__' && this.retryCount < ChatComponent.MAX_RETRIES) {
+          this.retryCount++;
+          console.log(`[Retry] Attempt ${this.retryCount}/${ChatComponent.MAX_RETRIES} in ${ChatComponent.RETRY_DELAY_MS}ms`);
+          
+          this.messages.update(msgs => {
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg.role === 'assistant') {
+              return [
+                ...msgs.slice(0, -1),
+                { ...lastMsg, content: `Initializing AI agent... (attempt ${this.retryCount + 1})`, streaming: true }
+              ];
+            }
+            return msgs;
+          });
+
+          setTimeout(() => {
+            this.isStreaming.set(false);
+            this.userInput.set(prompt);
+            this.messages.update(msgs => msgs.slice(0, -1)); // remove placeholder
+            this.sendMessage();
+          }, ChatComponent.RETRY_DELAY_MS);
+          return;
+        }
         
         // Check if session expired
         if (errorMessage.includes('Session not found') || errorMessage.includes('expired')) {
@@ -309,6 +337,7 @@ export class ChatComponent {
         }
         
         this.isStreaming.set(false);
+        this.retryCount = 0;
       },
       complete: () => {
         this.messages.update(msgs => {
@@ -325,6 +354,7 @@ export class ChatComponent {
           return msgs;
         });
         this.isStreaming.set(false);
+        this.retryCount = 0;
         // Clear imported PDF after send so it is not re-sent with next message
         this.clearImportedPdf();
       }

@@ -6,6 +6,8 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   streaming?: boolean;
+  /** Signals that Goose produced no output and the client should retry */
+  retryRequested?: boolean;
 }
 
 export interface SessionInfo {
@@ -332,6 +334,10 @@ export class ChatService {
           console.warn('Failed to parse activity event:', data, e);
         }
         break;
+      case 'retry':
+        console.warn('[SSE] Server requested retry:', data);
+        observer.error(new Error('__RETRY__'));
+        break;
       case 'complete':
         observer.complete();
         break;
@@ -390,6 +396,12 @@ export class ChatService {
       } catch (e) {
         console.warn('Failed to parse activity event:', event.data, e);
       }
+    });
+
+    eventSource.addEventListener('retry', (event: MessageEvent) => {
+      console.warn('[SSE] Server requested retry:', event.data);
+      eventSource.close();
+      observer.error(new Error('__RETRY__'));
     });
 
     eventSource.addEventListener('complete', () => {

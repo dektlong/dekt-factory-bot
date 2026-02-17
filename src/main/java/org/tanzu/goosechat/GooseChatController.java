@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -64,6 +65,11 @@ public class GooseChatController {
     private final Map<String, ConversationSession> sessions = new ConcurrentHashMap<>();
     private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "session-cleanup");
+        t.setDaemon(true);
+        return t;
+    });
+    private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "sse-heartbeat");
         t.setDaemon(true);
         return t;
     });
@@ -241,6 +247,7 @@ public class GooseChatController {
 
         executorService.execute(() -> {
             Stream<String> jsonStream = null;
+            ScheduledFuture<?> heartbeat = null;
             try {
                 if (!executor.isAvailable()) {
                     logger.error("Goose CLI is not available");
@@ -288,8 +295,27 @@ public class GooseChatController {
                 final long[] lastSendTime = {System.currentTimeMillis()};
                 final int BATCH_SIZE_THRESHOLD = 10; // Send after N tokens
                 final long BATCH_TIME_THRESHOLD_MS = 100; // Or after 100ms
-                
+
+                // Heartbeat: send periodic keepalive SSE events to prevent proxy
+                // idle-timeout disconnects (e.g. CF Go Router) while Goose
+                // initializes MCP servers on first run.
+                final AtomicBoolean receivedFirstEvent = new AtomicBoolean(false);
+                final long HEARTBEAT_INTERVAL_MS = 8_000; // 8 seconds
+                heartbeat = heartbeatExecutor.scheduleAtFixedRate(() -> {
+                    if (!receivedFirstEvent.get()) {
+                        try {
+                            emitter.send(SseEmitter.event()
+                                .name("heartbeat")
+                                .data("waiting"));
+                            logger.debug("Session {} heartbeat sent (waiting for Goose)", sessionId);
+                        } catch (IOException e) {
+                            logger.debug("Session {} heartbeat send failed (client disconnected?)", sessionId);
+                        }
+                    }
+                }, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
                 jsonStream.forEach(jsonLine -> {
+                    receivedFirstEvent.set(true);
                     try {
                         JsonNode event = objectMapper.readTree(jsonLine);
                         String eventType = event.has("type") ? event.get("type").asText() : "";
@@ -372,10 +398,21 @@ public class GooseChatController {
                 
                 logger.info("Session {} sent {} tokens in batches", sessionId, tokenCount[0]);
                 
-                // Increment message count
-                session.incrementMessageCount();
-                
-                emitter.complete();
+                // Only increment message count if we actually got tokens.
+                // On cold-start the first Goose invocation may produce zero output
+                // because MCP server connections are still initializing. Keeping
+                // messageCount at 0 lets the next attempt start a fresh session
+                // (resume=false) instead of resuming a broken one.
+                if (tokenCount[0] > 0) {
+                    session.incrementMessageCount();
+                    emitter.complete();
+                } else {
+                    logger.warn("Session {} produced 0 tokens — signalling retry so client can resend", sessionId);
+                    emitter.send(SseEmitter.event()
+                        .name("retry")
+                        .data("Empty response from Goose — MCP servers may still be initializing"));
+                    emitter.complete();
+                }
                 logger.info("Streaming message completed for session {}", sessionId);
                     
             } catch (GooseExecutionException e) {
@@ -399,6 +436,10 @@ public class GooseChatController {
                 }
                 emitter.completeWithError(e);
             } finally {
+                // Stop heartbeat keepalive
+                if (heartbeat != null) {
+                    heartbeat.cancel(false);
+                }
                 // Ensure stream is closed to clean up subprocess
                 if (jsonStream != null) {
                     jsonStream.close();

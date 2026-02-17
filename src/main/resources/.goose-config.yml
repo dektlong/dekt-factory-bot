@@ -14,7 +14,7 @@ model: gpt-5.2-chat-latest
 extensions:
   developer:
     enabled: true
-
+  
 # Session defaults
 session:
   # Maximum turns before requiring user input (prevents runaway sessions)
