@@ -68,7 +68,7 @@ public class GooseChatController {
         t.setDaemon(true);
         return t;
     });
-    private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+    private final ScheduledExecutorService heartbeatExecutor = Executors.newScheduledThreadPool(4, r -> {
         Thread t = new Thread(r, "sse-heartbeat");
         t.setDaemon(true);
         return t;
@@ -248,6 +248,7 @@ public class GooseChatController {
         executorService.execute(() -> {
             Stream<String> jsonStream = null;
             ScheduledFuture<?> heartbeat = null;
+            final AtomicBoolean streamCompleted = new AtomicBoolean(false);
             try {
                 if (!executor.isAvailable()) {
                     logger.error("Goose CLI is not available");
@@ -282,132 +283,192 @@ public class GooseChatController {
                 // Inject OAuth tokens for authenticated MCP servers before execution
                 configInjector.injectOAuthTokens(sessionId);
 
-                // Execute Goose with streaming JSON output for token-level streaming
-                boolean isFirstMessage = session.messageCount() == 0;
-                jsonStream = executor.executeInSessionStreamingJson(
-                    sessionId, message, !isFirstMessage, options
-                );
-                
-                // Process each JSON event as it arrives
-                // Batch tokens to work around proxy buffering (e.g., Cloud Foundry Go Router)
+                // Token batching to work around proxy buffering (e.g., Cloud Foundry Go Router)
                 final int[] tokenCount = {0};
                 final StringBuilder tokenBatch = new StringBuilder();
                 final long[] lastSendTime = {System.currentTimeMillis()};
-                final int BATCH_SIZE_THRESHOLD = 10; // Send after N tokens
-                final long BATCH_TIME_THRESHOLD_MS = 100; // Or after 100ms
+                final int BATCH_SIZE_THRESHOLD = 10;
+                final long BATCH_TIME_THRESHOLD_MS = 100;
 
                 // Heartbeat: send periodic keepalive SSE events to prevent proxy
-                // idle-timeout disconnects (e.g. CF Go Router) while Goose
-                // initializes MCP servers on first run.
-                final AtomicBoolean receivedFirstEvent = new AtomicBoolean(false);
-                final long HEARTBEAT_INTERVAL_MS = 8_000; // 8 seconds
+                // idle-timeout disconnects (e.g. CF Go Router) during the ENTIRE
+                // streaming session. Multi-skill prompts can cause long silent
+                // periods while Goose executes tools, during which no SSE data
+                // flows and proxies may drop the idle connection.
+                final long[] lastDataSentTime = {System.currentTimeMillis()};
+                final long HEARTBEAT_INTERVAL_MS = 8_000;
+                final long IDLE_THRESHOLD_MS = 6_000;
                 heartbeat = heartbeatExecutor.scheduleAtFixedRate(() -> {
-                    if (!receivedFirstEvent.get()) {
+                    if (streamCompleted.get()) {
+                        return;
+                    }
+                    long timeSinceLastData = System.currentTimeMillis() - lastDataSentTime[0];
+                    if (timeSinceLastData >= IDLE_THRESHOLD_MS) {
                         try {
                             emitter.send(SseEmitter.event()
                                 .name("heartbeat")
                                 .data("waiting"));
-                            logger.debug("Session {} heartbeat sent (waiting for Goose)", sessionId);
+                            lastDataSentTime[0] = System.currentTimeMillis();
+                            logger.debug("Session {} heartbeat sent (idle for {}ms)", sessionId, timeSinceLastData);
                         } catch (IOException e) {
                             logger.debug("Session {} heartbeat send failed (client disconnected?)", sessionId);
                         }
                     }
                 }, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS);
 
-                jsonStream.forEach(jsonLine -> {
-                    receivedFirstEvent.set(true);
+                // Server-side retry for cold-start: on a fresh container Goose must
+                // download skills from GitHub, initialize MCP servers, and compile
+                // extensions. The first several invocations often produce 0 tokens
+                // or throw execution errors while this completes. Retry internally
+                // on the SAME SSE connection — no client reconnect needed.
+                final int MAX_COLD_START_RETRIES = 5;
+                final long[] COLD_START_RETRY_DELAYS = {5_000, 8_000, 10_000, 15_000, 15_000};
+
+                for (int attempt = 0; attempt <= MAX_COLD_START_RETRIES; attempt++) {
+                    if (attempt > 0) {
+                        // Close previous stream before retrying
+                        if (jsonStream != null) {
+                            jsonStream.close();
+                            jsonStream = null;
+                        }
+
+                        long delay = COLD_START_RETRY_DELAYS[Math.min(attempt - 1, COLD_START_RETRY_DELAYS.length - 1)];
+                        logger.info("Session {} cold-start server-retry {}/{} after {}ms",
+                            sessionId, attempt, MAX_COLD_START_RETRIES, delay);
+                        Thread.sleep(delay);
+
+                        emitter.send(SseEmitter.event()
+                            .name("status")
+                            .data("Initializing AI agent... (attempt " + (attempt + 1) + ")"));
+                        lastDataSentTime[0] = System.currentTimeMillis();
+
+                        configInjector.injectOAuthTokens(sessionId);
+
+                        // Reset counters for new attempt
+                        tokenCount[0] = 0;
+                        tokenBatch.setLength(0);
+                        lastSendTime[0] = System.currentTimeMillis();
+                    }
+
                     try {
-                        JsonNode event = objectMapper.readTree(jsonLine);
-                        String eventType = event.has("type") ? event.get("type").asText() : "";
-                        
-                        switch (eventType) {
-                            case "message" -> {
-                                // Check for tool requests in the message content
-                                String activityJson = extractToolActivityFromMessage(event, sessionId);
-                                if (activityJson != null) {
-                                    emitter.send(SseEmitter.event()
-                                        .name("activity")
-                                        .data(activityJson));
-                                }
-                                
-                                // Also extract text tokens if present
-                                String token = extractTextFromMessage(event);
-                                if (token != null) {
-                                    tokenBatch.append(token);
-                                    tokenCount[0]++;
-                                    
-                                    long now = System.currentTimeMillis();
-                                    boolean shouldFlush = tokenCount[0] % BATCH_SIZE_THRESHOLD == 0 
-                                        || (now - lastSendTime[0]) > BATCH_TIME_THRESHOLD_MS
-                                        || token.contains("\n");
-                                    
-                                    if (shouldFlush && !tokenBatch.isEmpty()) {
-                                        // Wrap token in JSON to preserve whitespace
-                                        String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
-                                        emitter.send(SseEmitter.event()
-                                            .name("token")
-                                            .data(tokenJson));
-                                        tokenBatch.setLength(0);
-                                        lastSendTime[0] = now;
+                        boolean isFirstMessage = session.messageCount() == 0;
+                        jsonStream = executor.executeInSessionStreamingJson(
+                            sessionId, message, !isFirstMessage, options
+                        );
+
+                        jsonStream.forEach(jsonLine -> {
+                            lastDataSentTime[0] = System.currentTimeMillis();
+                            try {
+                                JsonNode event = objectMapper.readTree(jsonLine);
+                                String eventType = event.has("type") ? event.get("type").asText() : "";
+
+                                switch (eventType) {
+                                    case "message" -> {
+                                        String activityJson = extractToolActivityFromMessage(event, sessionId);
+                                        if (activityJson != null) {
+                                            emitter.send(SseEmitter.event()
+                                                .name("activity")
+                                                .data(activityJson));
+                                        }
+
+                                        String token = extractTextFromMessage(event);
+                                        if (token != null) {
+                                            tokenBatch.append(token);
+                                            tokenCount[0]++;
+
+                                            long now = System.currentTimeMillis();
+                                            boolean shouldFlush = tokenCount[0] % BATCH_SIZE_THRESHOLD == 0
+                                                || (now - lastSendTime[0]) > BATCH_TIME_THRESHOLD_MS
+                                                || token.contains("\n");
+
+                                            if (shouldFlush && !tokenBatch.isEmpty()) {
+                                                String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
+                                                emitter.send(SseEmitter.event()
+                                                    .name("token")
+                                                    .data(tokenJson));
+                                                tokenBatch.setLength(0);
+                                                lastSendTime[0] = now;
+                                            }
+                                        }
+                                    }
+                                    case "notification" -> {
+                                        String activityJson = formatNotificationActivity(event, sessionId);
+                                        if (activityJson != null) {
+                                            emitter.send(SseEmitter.event()
+                                                .name("activity")
+                                                .data(activityJson));
+                                        }
+                                    }
+                                    case "complete" -> {
+                                        if (!tokenBatch.isEmpty()) {
+                                            String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
+                                            emitter.send(SseEmitter.event()
+                                                .name("token")
+                                                .data(tokenJson));
+                                            tokenBatch.setLength(0);
+                                        }
+                                        processCompleteEvent(jsonLine, emitter, sessionId);
                                     }
                                 }
+                            } catch (IOException e) {
+                                logger.error("Error sending SSE event for session {}", sessionId, e);
+                                throw new RuntimeException("SSE send failed", e);
+                            } catch (Exception e) {
+                                logger.warn("Failed to parse JSON event for session {}: {}", sessionId, jsonLine, e);
                             }
-                            case "notification" -> {
-                                // Forward notification events as activity
-                                String activityJson = formatNotificationActivity(event, sessionId);
-                                if (activityJson != null) {
-                                    emitter.send(SseEmitter.event()
-                                        .name("activity")
-                                        .data(activityJson));
-                                }
-                            }
-                            case "complete" -> {
-                                // Flush any remaining tokens before complete
-                                if (!tokenBatch.isEmpty()) {
-                                    // Wrap token in JSON to preserve whitespace
-                                    String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
-                                    emitter.send(SseEmitter.event()
-                                        .name("token")
-                                        .data(tokenJson));
-                                    tokenBatch.setLength(0);
-                                }
-                                // Send complete event
-                                processCompleteEvent(jsonLine, emitter, sessionId);
+                        });
+
+                        // Flush any remaining tokens after stream ends
+                        if (!tokenBatch.isEmpty()) {
+                            try {
+                                String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
+                                emitter.send(SseEmitter.event()
+                                    .name("token")
+                                    .data(tokenJson));
+                            } catch (IOException e) {
+                                logger.error("Error flushing final tokens for session {}", sessionId, e);
                             }
                         }
-                    } catch (IOException e) {
-                        logger.error("Error sending SSE event for session {}", sessionId, e);
-                        throw new RuntimeException("SSE send failed", e);
-                    } catch (Exception e) {
-                        logger.warn("Failed to parse JSON event for session {}: {}", sessionId, jsonLine, e);
+                    } catch (GooseExecutionException e) {
+                        // During cold-start, Goose may fail while initializing
+                        // extensions/skills — treat as retriable if we have attempts left
+                        logger.warn("Session {} Goose execution failed on attempt {} — {}",
+                            sessionId, attempt + 1, e.getMessage());
+                        tokenCount[0] = 0;
+                        tokenBatch.setLength(0);
+                    } catch (RuntimeException e) {
+                        if (e.getMessage() != null && e.getMessage().contains("SSE send failed")) {
+                            throw e; // Client disconnected — no point retrying
+                        }
+                        logger.warn("Session {} unexpected error on attempt {} — {}",
+                            sessionId, attempt + 1, e.getMessage());
+                        tokenCount[0] = 0;
+                        tokenBatch.setLength(0);
                     }
-                });
-                
-                // Flush any remaining tokens
-                if (!tokenBatch.isEmpty()) {
-                    try {
-                        // Wrap token in JSON to preserve whitespace
-                        String tokenJson = objectMapper.writeValueAsString(tokenBatch.toString());
-                        emitter.send(SseEmitter.event()
-                            .name("token")
-                            .data(tokenJson));
-                    } catch (IOException e) {
-                        logger.error("Error flushing final tokens for session {}", sessionId, e);
+
+                    logger.info("Session {} attempt {} produced {} tokens", sessionId, attempt + 1, tokenCount[0]);
+
+                    // If we got tokens, or this is not a cold-start (messageCount > 0), stop retrying
+                    if (tokenCount[0] > 0 || session.messageCount() > 0) {
+                        break;
+                    }
+
+                    if (attempt < MAX_COLD_START_RETRIES) {
+                        logger.warn("Session {} produced 0 tokens on attempt {} — will retry server-side",
+                            sessionId, attempt + 1);
                     }
                 }
-                
-                logger.info("Session {} sent {} tokens in batches", sessionId, tokenCount[0]);
-                
-                // Only increment message count if we actually got tokens.
-                // On cold-start the first Goose invocation may produce zero output
-                // because MCP server connections are still initializing. Keeping
-                // messageCount at 0 lets the next attempt start a fresh session
-                // (resume=false) instead of resuming a broken one.
+
+                // Signal heartbeat to stop
+                streamCompleted.set(true);
+
+                // Finalize: increment message count or signal client retry as last resort
                 if (tokenCount[0] > 0) {
                     session.incrementMessageCount();
                     emitter.complete();
                 } else {
-                    logger.warn("Session {} produced 0 tokens — signalling retry so client can resend", sessionId);
+                    logger.warn("Session {} produced 0 tokens after {} server-side retries — signalling client retry",
+                        sessionId, MAX_COLD_START_RETRIES + 1);
                     emitter.send(SseEmitter.event()
                         .name("retry")
                         .data("Empty response from Goose — MCP servers may still be initializing"));
@@ -416,6 +477,7 @@ public class GooseChatController {
                 logger.info("Streaming message completed for session {}", sessionId);
                     
             } catch (GooseExecutionException e) {
+                streamCompleted.set(true);
                 logger.error("Goose execution failed for session {}", sessionId, e);
                 try {
                     emitter.send(SseEmitter.event()
@@ -426,6 +488,7 @@ public class GooseChatController {
                 }
                 emitter.completeWithError(e);
             } catch (Exception e) {
+                streamCompleted.set(true);
                 logger.error("Unexpected error during message send to session {}", sessionId, e);
                 try {
                     emitter.send(SseEmitter.event()

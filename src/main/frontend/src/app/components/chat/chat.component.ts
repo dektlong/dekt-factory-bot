@@ -50,8 +50,8 @@ export class ChatComponent {
   protected activityPanelCollapsed = signal(false);
   protected configPanelCollapsed = signal(false);
   private retryCount = 0;
-  private static readonly MAX_RETRIES = 2;
-  private static readonly RETRY_DELAY_MS = 3000;
+  private static readonly MAX_RETRIES = 3;
+  private static readonly RETRY_DELAY_MS = 5000;
   protected importedPdf = signal<PdfExtractResult | null>(null);
   protected isImportingPdf = signal(false);
   protected ragEnabled = signal(false);
@@ -275,17 +275,21 @@ export class ChatComponent {
         
         const errorMessage = error.message || 'Failed to get response from Tanzu-Factory.';
         
-        // Handle server-requested retry (cold start / MCP initialization)
-        if (errorMessage === '__RETRY__' && this.retryCount < ChatComponent.MAX_RETRIES) {
+        // Handle retriable errors:
+        // __RETRY__ = server-initiated (cold start / MCP initialization)
+        // __CONNECTION_DROPPED__ = proxy dropped the SSE connection mid-stream
+        const isRetriable = errorMessage === '__RETRY__' || errorMessage === '__CONNECTION_DROPPED__';
+        if (isRetriable && this.retryCount < ChatComponent.MAX_RETRIES) {
           this.retryCount++;
-          console.log(`[Retry] Attempt ${this.retryCount}/${ChatComponent.MAX_RETRIES} in ${ChatComponent.RETRY_DELAY_MS}ms`);
+          const reason = errorMessage === '__CONNECTION_DROPPED__' ? 'Connection lost, reconnecting' : 'Initializing AI agent';
+          console.log(`[Retry] ${reason} — attempt ${this.retryCount}/${ChatComponent.MAX_RETRIES} in ${ChatComponent.RETRY_DELAY_MS}ms`);
           
           this.messages.update(msgs => {
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg.role === 'assistant') {
               return [
                 ...msgs.slice(0, -1),
-                { ...lastMsg, content: `Initializing AI agent... (attempt ${this.retryCount + 1})`, streaming: true }
+                { ...lastMsg, content: `${reason}... (attempt ${this.retryCount + 1})`, streaming: true }
               ];
             }
             return msgs;

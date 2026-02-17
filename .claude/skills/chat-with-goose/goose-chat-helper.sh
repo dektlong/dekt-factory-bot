@@ -170,7 +170,7 @@ send_message() {
     # Stream response and parse SSE events
     curl -s -b "$COOKIE_FILE" -N \
         "$APP_URL/api/chat/sessions/${session_id}/stream?message=${message_encoded}" \
-        --max-time 120 | while IFS= read -r line; do
+        --max-time 600 | while IFS= read -r line; do
 
         if [[ "$line" =~ ^event:(.+)$ ]]; then
             event_type="${BASH_REMATCH[1]}"

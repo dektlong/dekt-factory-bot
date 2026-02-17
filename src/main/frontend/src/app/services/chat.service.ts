@@ -353,6 +353,11 @@ export class ChatService {
     eventSource: EventSource,
     observer: { next: (t: string) => void; error: (e: Error) => void; complete: () => void }
   ): void {
+    // Track whether the server sent a proper 'complete' event.
+    // If the connection drops without one, we treat it as a retriable error
+    // rather than silently completing with an empty/truncated response.
+    let serverCompletedCleanly = false;
+
     eventSource.addEventListener('token', (event: MessageEvent) => {
       const data = event.data;
       if (data && data.length > 0) {
@@ -405,6 +410,7 @@ export class ChatService {
     });
 
     eventSource.addEventListener('complete', () => {
+      serverCompletedCleanly = true;
       eventSource.close();
       observer.complete();
     });
@@ -416,7 +422,12 @@ export class ChatService {
 
     eventSource.onerror = () => {
       if (eventSource.readyState === EventSource.CLOSED) {
-        observer.complete();
+        if (serverCompletedCleanly) {
+          observer.complete();
+        } else {
+          console.warn('[SSE] Connection closed without server complete event — likely proxy timeout');
+          observer.error(new Error('__CONNECTION_DROPPED__'));
+        }
       } else {
         eventSource.close();
         observer.error(new Error('Connection to server failed'));
