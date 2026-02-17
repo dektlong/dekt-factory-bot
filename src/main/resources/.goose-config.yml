@@ -13,14 +13,12 @@ model: gpt-5.2-chat-latest
 # Extensions to enable by default
 extensions:
   developer:
-    enabled: true
-  
 # Session defaults
 session:
   # Maximum turns before requiring user input (prevents runaway sessions)
   max_turns: 100
 
-mcpServers:
+#mcpServers:
   # Factory MCP Server workaround
   #- name: dekt-factory-data
   #  type: streamable_http

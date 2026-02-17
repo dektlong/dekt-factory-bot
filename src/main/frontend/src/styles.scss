@@ -10,12 +10,12 @@
 @import 'theme';
 
 html {
-  // Tanzu-Factory theme - using cyan/orange palette for a distinctive look
+  // Tanzu-Factory theme - using purple palette for a distinctive look
   // This generates the --mat-sys-* variables that Angular Material components use
   @include mat.theme((
     color: (
-      primary: mat.$cyan-palette,
-      tertiary: mat.$orange-palette,
+      primary: mat.$violet-palette,
+      tertiary: mat.$rose-palette,
     ),
     typography: Roboto,
     density: 0,

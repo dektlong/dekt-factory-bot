@@ -14,7 +14,7 @@ import { AuthService } from './services/auth.service';
   styleUrl: './app.scss'
 })
 export class App implements OnInit {
-  protected readonly title = signal('Tanzu Factory');
+  protected readonly title = signal('Tanzu Factory AI Portal');
   protected readonly displayName = signal<string | null>(null);
   protected readonly isAuthenticated = signal(false);
 

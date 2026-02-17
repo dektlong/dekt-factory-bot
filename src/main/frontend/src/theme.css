@@ -4,7 +4,7 @@
  * This file defines the color palette and design tokens used across
  * both the static login page and the Angular application.
  * 
- * Based on Material Design 3 with a Cyan/Orange palette.
+ * Based on Material Design 3 with a Purple palette.
  * 
  * NOTE: This is the single source of truth for the theme.
  * The Angular app imports a copy from src/main/frontend/src/theme.css
@@ -14,41 +14,41 @@
 :root {
   /* ===== Color Palette ===== */
 
-  /* Primary - Cyan/Teal */
-  --app-color-primary: #00796B;
+  /* Primary - Purple */
+  --app-color-primary: #6750A4;
   --app-color-on-primary: #FFFFFF;
-  --app-color-primary-container: #A7F3EC;
-  --app-color-on-primary-container: #002020;
+  --app-color-primary-container: #EADDFF;
+  --app-color-on-primary-container: #21005D;
 
-  /* Secondary - Neutral with cyan tint */
-  --app-color-secondary: #4A635F;
+  /* Secondary - Neutral with purple tint */
+  --app-color-secondary: #625B71;
   --app-color-on-secondary: #FFFFFF;
-  --app-color-secondary-container: #CCE8E2;
-  --app-color-on-secondary-container: #05201C;
+  --app-color-secondary-container: #E8DEF8;
+  --app-color-on-secondary-container: #1D192B;
 
-  /* Tertiary - Orange */
-  --app-color-tertiary: #E65100;
+  /* Tertiary - Pink/Rose */
+  --app-color-tertiary: #7D5260;
   --app-color-on-tertiary: #FFFFFF;
-  --app-color-tertiary-container: #FFDBCF;
-  --app-color-on-tertiary-container: #331200;
+  --app-color-tertiary-container: #FFD8E4;
+  --app-color-on-tertiary-container: #31111D;
 
   /* Surface */
-  --app-color-surface: #F5FDFB;
-  --app-color-surface-dim: #D5DBD9;
-  --app-color-surface-bright: #F5FDFB;
+  --app-color-surface: #FEF7FF;
+  --app-color-surface-dim: #DED8E1;
+  --app-color-surface-bright: #FEF7FF;
   --app-color-surface-container-lowest: #FFFFFF;
-  --app-color-surface-container-low: #EFF5F3;
-  --app-color-surface-container: #E9EFED;
-  --app-color-surface-container-high: #E3E9E7;
-  --app-color-surface-container-highest: #DEE4E1;
+  --app-color-surface-container-low: #F7F2FA;
+  --app-color-surface-container: #F3EDF7;
+  --app-color-surface-container-high: #ECE6F0;
+  --app-color-surface-container-highest: #E6E0E9;
 
   /* On-surface */
-  --app-color-on-surface: #171D1B;
-  --app-color-on-surface-variant: #3F4946;
+  --app-color-on-surface: #1C1B1F;
+  --app-color-on-surface-variant: #49454F;
 
   /* Outline */
-  --app-color-outline: #6F7976;
-  --app-color-outline-variant: #BFC9C5;
+  --app-color-outline: #79747E;
+  --app-color-outline-variant: #CAC4D0;
 
   /* Error */
   --app-color-error: #BA1A1A;
