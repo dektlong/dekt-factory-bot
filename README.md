@@ -61,11 +61,16 @@ cf push
 ## Example usage
 for better performance, disable uneeded tools
 ```
-disable extensions: developer, apps, todo, extensionmanager
+disable extensions: apps, todo, extensionmanager
 ```
-### sample prompt
-Check manufacturing stages, motivate current supply chain, audit  factory applications, check maintenance document. Post all results to Google chat
+### sample prompts
+```
+Check manufacturing stages and motivate current supply chain.
 
+Audit factory applications and check maintenance document. 
+
+Post all results to Google chat
+```
 ## Architecture
 
 ```

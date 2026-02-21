@@ -11,7 +11,6 @@ applications:
       GOOSE_ENABLED: true
       #GOOGLE_CHAT_SPACES: '{ "MY_SPACE_NAME": { "space_id": "MY_SPACE_ID", "key": "MY_SPACE_KEY", "token": "MY_SPACE_TOKEN"} }'
       
-
     services:
       - dekt-sso
       - dekt-genai-chat
