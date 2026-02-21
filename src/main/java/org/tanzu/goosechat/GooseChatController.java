@@ -163,7 +163,8 @@ public class GooseChatController {
             @PathVariable String sessionId,
             @RequestParam String message,
             HttpServletResponse response) {
-        String effectiveMessage = prependRagContext(message);
+        String effectiveMessage = prependSkillDirectives(message);
+        effectiveMessage = prependRagContext(effectiveMessage);
         return streamMessageInternal(sessionId, effectiveMessage, response);
     }
 
@@ -184,11 +185,13 @@ public class GooseChatController {
         String message = request != null && request.message() != null ? request.message() : "";
         String documentContext = request != null ? request.documentContext() : null;
 
-        // Try RAG first; if it adds context we're done
-        String effectiveMessage = prependRagContext(message);
+        // Prepend skill routing directives, then try RAG context
+        String effectiveMessage = prependSkillDirectives(message);
+        String preRagMessage = effectiveMessage;
+        effectiveMessage = prependRagContext(effectiveMessage);
 
         // If RAG didn't add context and the client sent inline document text, use that
-        if (effectiveMessage.equals(message)
+        if (effectiveMessage.equals(preRagMessage)
                 && documentContext != null && !documentContext.isBlank()) {
             logger.info("Using inline document context ({} chars) for session message", documentContext.length());
             effectiveMessage = "The user has provided the following document. "
@@ -198,6 +201,46 @@ public class GooseChatController {
         }
 
         return streamMessageInternal(sessionId, effectiveMessage, response);
+    }
+
+    /**
+     * Detect skill-related keywords in the user message and prepend explicit
+     * directives telling the LLM to EXECUTE the installed skill rather than
+     * provide generic instructions. This compensates for models (e.g. GenAI
+     * proxy models) that may not reliably follow multi-step skill workflows
+     * without additional prompt reinforcement.
+     */
+    private String prependSkillDirectives(String userMessage) {
+        String lower = userMessage.toLowerCase();
+        StringBuilder directives = new StringBuilder();
+
+        if (lower.contains("google chat")) {
+            directives.append("SKILL DIRECTIVE: You have the 'google-chat-poster' skill installed. ")
+                .append("You MUST use it to actually post to Google Chat — do NOT just explain how. ")
+                .append("Load the skill, read GOOGLE_CHAT_SPACES from the environment, ")
+                .append("and execute the curl/script commands to post the message. ")
+                .append("If the user's prompt contains multiple tasks, aggregate ALL results ")
+                .append("into a single formatted Google Chat message before posting.\n\n");
+        }
+
+        if (lower.contains("supply chain")) {
+            directives.append("SKILL DIRECTIVE: You have the 'supplychain-motivator' skill installed. ")
+                .append("You MUST use it to check the daily target and generate a motivation message — ")
+                .append("do NOT just describe supply chain concepts.\n\n");
+        }
+
+        if (lower.contains("audit") && lower.contains("factory")) {
+            directives.append("SKILL DIRECTIVE: You have the 'factory-audit' skill installed. ")
+                .append("You MUST use it to perform the factory application audit — ")
+                .append("do NOT just explain audit concepts.\n\n");
+        }
+
+        if (directives.isEmpty()) {
+            return userMessage;
+        }
+
+        logger.info("Skill directives prepended for message ({} chars added)", directives.length());
+        return directives.toString() + userMessage;
     }
 
     /**

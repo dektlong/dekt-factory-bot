@@ -4,13 +4,14 @@ applications:
     path: target/dekt-factory-bot-1.0.0.jar
     memory: 2G
     buildpacks:
-      - https://github.com/cpage-pivotal/goose-buildpack#bearer
+      - https://github.com/cpage-pivotal/goose-buildpack
       - java_buildpack_offline
     env:
       JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+ } }'
       GOOSE_ENABLED: true
-      GOOGLE_CHAT_SPACES: '{ "MY_SPACE_NAME": { "space_id": "MY_SPACE_ID", "key": "MY_SPACE_KEY", "token": "MY_SPACE_TOKEN"} }'
+      #GOOGLE_CHAT_SPACES: '{ "MY_SPACE_NAME": { "space_id": "MY_SPACE_ID", "key": "MY_SPACE_KEY", "token": "MY_SPACE_TOKEN"} }'
       
+
     services:
       - dekt-sso
       - dekt-genai-chat
