@@ -2,11 +2,6 @@
 
 An AI-powered manufacturing monitoring bot that analyzes factory data, audits supply chains, and delivers actionable insights. Built with [Goose AI agent](https://github.com/block/goose), Spring Boot, and Angular -- all services hosted on **Tanzu Platform**.
 
-### Example Usage
-
-```
-Check manufacturing stages and motivated supply chain status. Audit factory applications. Check for maintenance issues in the log. Post results here and in  Google chat.
-```
 
 > **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
 
@@ -62,6 +57,14 @@ cf create-service
 # Deploy to Tanzu
 cf push
 ```
+
+## Example usage
+for better performance, disable uneeded tools
+```
+disable extensions: developer, apps, todo, extensionmanager
+```
+# sample prompt
+Check manufacturing stages, motivate current supply chain, audit  factory applications, check maintenance document. Post all results to Google chat
 
 ## Architecture
 

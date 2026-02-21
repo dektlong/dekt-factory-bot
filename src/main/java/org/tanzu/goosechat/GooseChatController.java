@@ -462,9 +462,12 @@ public class GooseChatController {
                 // Signal heartbeat to stop
                 streamCompleted.set(true);
 
-                // Finalize: increment message count or signal client retry as last resort
+                // Finalize: send SSE complete (with tokens) or retry (no visible text)
                 if (tokenCount[0] > 0) {
                     session.incrementMessageCount();
+                    emitter.send(SseEmitter.event()
+                        .name("complete")
+                        .data(String.valueOf(tokenCount[0])));
                     emitter.complete();
                 } else {
                     logger.warn("Session {} produced 0 tokens after {} server-side retries — signalling client retry",
@@ -673,16 +676,15 @@ public class GooseChatController {
     }
 
     /**
-     * Process a complete event from streaming JSON.
+     * Log the Goose "complete" event but do NOT send SSE complete to the client.
+     * The post-loop code decides whether to send SSE complete (tokens produced)
+     * or SSE retry (zero tokens, e.g. tool-only response or cold-start).
      */
     private void processCompleteEvent(String jsonLine, SseEmitter emitter, String sessionId) throws IOException {
         try {
             JsonNode event = objectMapper.readTree(jsonLine);
             int totalTokens = event.has("total_tokens") ? event.get("total_tokens").asInt() : 0;
-            emitter.send(SseEmitter.event()
-                .name("complete")
-                .data(String.valueOf(totalTokens)));
-            logger.info("Session {} completed streaming with {} total LLM tokens", sessionId, totalTokens);
+            logger.info("Session {} Goose reported completion with {} total LLM tokens", sessionId, totalTokens);
         } catch (Exception e) {
             logger.warn("Failed to parse complete event for session {}: {}", sessionId, jsonLine, e);
         }

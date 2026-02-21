@@ -347,19 +347,18 @@ export class ChatComponent {
         this.messages.update(msgs => {
           const lastMsg = msgs[msgs.length - 1];
           if (lastMsg.role === 'assistant') {
+            const content = lastMsg.content.trim()
+              ? lastMsg.content
+              : '_No visible response was generated. The AI agent may have only executed tool actions. Try rephrasing your request._';
             return [
               ...msgs.slice(0, -1),
-              {
-                ...lastMsg,
-                streaming: false
-              }
+              { ...lastMsg, content, streaming: false }
             ];
           }
           return msgs;
         });
         this.isStreaming.set(false);
         this.retryCount = 0;
-        // Clear imported PDF after send so it is not re-sent with next message
         this.clearImportedPdf();
       }
     });
