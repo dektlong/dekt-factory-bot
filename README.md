@@ -63,7 +63,7 @@ for better performance, disable uneeded tools
 ```
 disable extensions: developer, apps, todo, extensionmanager
 ```
-# sample prompt
+### sample prompt
 Check manufacturing stages, motivate current supply chain, audit  factory applications, check maintenance document. Post all results to Google chat
 
 ## Architecture
