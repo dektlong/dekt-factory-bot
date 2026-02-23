@@ -29,10 +29,7 @@ skills:
     source: https://github.com/dektlong/agent-skills.git
     branch: main
     path: plugins/supplychain-motivator/skills/supplychain-motivator
-  - name: factory-audit
-    source: https://github.com/dektlong/agent-skills.git
-    branch: main
-    path: plugins/factory-audit/skills/factory-audit
+ 
   - name: google-chat-poster
     source: https://github.com/dektlong/agent-skills.git
     branch: main

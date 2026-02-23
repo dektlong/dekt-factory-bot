@@ -18,7 +18,6 @@ All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MC
 - **Manufacturing Data Monitoring** -- Connects to factory data via an MCP server (`dekt-factory-data`) hosted on Tanzu Platform
 - **Skills** -- Pluggable Goose skills for domain-specific analysis:
   - `supplychain-motivator` -- Supply chain performance insights and recommendations
-  - `factory-audit` -- Factory operations auditing and compliance checks
   - `google-chat-poster` -- Posts alerts and summaries to Google Chat spaces
 - **Document Embeddings** -- Upload and embed operational documents (PDFs) for retrieval-augmented responses (see: factory-maintenance-log.pdf), powered by a GenAI embedding service on Tanzu Platform
 - **Multi-turn Chat** -- Maintains conversation context across messages with real-time SSE streaming
@@ -36,7 +35,6 @@ All services are bound and managed through Tanzu Platform:
 | `dekt-factory-data` | MCP server exposing live manufacturing data, using this dummy Factory Management System - https://github.com/cpage-pivotal/factory-mcp-server |
 | `dekt-db` | Database for session and document storage |
 | `dekt-sso` | SSO identity provider for user authentication |
-| `dekt-tanzu-platform` | Tanzu Platform integration service |
 
 ## Prerequisites
 
@@ -59,17 +57,8 @@ cf push
 ```
 
 ## Example usage
-for better performance, disable uneeded tools
 ```
-disable extensions: apps, todo, extensionmanager
-```
-### sample prompts
-```
-Check manufacturing stages and motivate current supply chain.
-
-Audit factory applications and check maintenance document. 
-
-Post all results to Google chat
+Check manufacturing stages, motivate current supply chain and check maintenance document. Post all results to Google chat
 ```
 ## Architecture
 
@@ -104,8 +93,7 @@ Post all results to Google chat
 │  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
 │  │                                                                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
-│  │  │ dekt-sso     │  │ dekt-db      │  │ dekt-tanzu-platform       │   │  │
-│  │  │ (Identity)   │  │ (Database)   │  │ (Platform Integration)    │   │  │
+│  │  │ dekt-sso     │  │ dekt-db      │  │    
 │  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -118,7 +106,6 @@ Skills are pluggable Goose extensions configured in `.goose-config.yml`:
 | Skill | Purpose |
 |-------|---------|
 | `supplychain-motivator` | Adds a motivation sentence to the supply chain data based on performance |
-| `factory-audit` | Audits factory applications for memory foot print |
 | `google-chat-poster` | Posts alerts and summaries to configured Google Chat spaces |
 
 Skills are sourced from [dektlong/agent-skills](https://github.com/dektlong/agent-skills).

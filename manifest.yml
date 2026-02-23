@@ -16,6 +16,5 @@ applications:
       - dekt-genai-chat
       - dekt-genai-embed
       - dekt-factory-info   
-      - dekt-tanzu-platform
       - dekt-db
 

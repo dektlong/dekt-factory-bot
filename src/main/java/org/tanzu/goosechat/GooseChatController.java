@@ -229,12 +229,6 @@ public class GooseChatController {
                 .append("do NOT just describe supply chain concepts.\n\n");
         }
 
-        if (lower.contains("audit") && lower.contains("factory")) {
-            directives.append("SKILL DIRECTIVE: You have the 'factory-audit' skill installed. ")
-                .append("You MUST use it to perform the factory application audit — ")
-                .append("do NOT just explain audit concepts.\n\n");
-        }
-
         if (directives.isEmpty()) {
             return userMessage;
         }
