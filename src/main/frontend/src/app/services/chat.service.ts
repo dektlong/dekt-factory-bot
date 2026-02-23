@@ -254,6 +254,7 @@ export class ChatService {
         }
 
         let buffer = '';
+        let eventType = '';
         const processChunk = (): Promise<void> =>
           reader.read().then(({ done, value }) => {
             if (aborted || done) {
@@ -264,12 +265,11 @@ export class ChatService {
             const lines = buffer.split(/\n/);
             buffer = lines.pop() ?? '';
 
-            let eventType = '';
             for (const line of lines) {
-              if (line.startsWith('event: ')) {
-                eventType = line.slice(7).trim();
-              } else if (line.startsWith('data: ') && eventType) {
-                const data = line.slice(6);
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:') && eventType) {
+                const data = line.slice(5).trim();
                 this.handleStreamEvent(eventType, data, observer);
                 eventType = '';
               }

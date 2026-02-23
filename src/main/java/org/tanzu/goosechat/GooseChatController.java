@@ -163,7 +163,8 @@ public class GooseChatController {
             @PathVariable String sessionId,
             @RequestParam String message,
             HttpServletResponse response) {
-        String effectiveMessage = prependSkillDirectives(message);
+        String skillDirectives = buildSkillDirectives(message);
+        String effectiveMessage = message + (skillDirectives.isEmpty() ? "" : "\n\n" + skillDirectives);
         effectiveMessage = prependRagContext(effectiveMessage);
         return streamMessageInternal(sessionId, effectiveMessage, response);
     }
@@ -185,8 +186,11 @@ public class GooseChatController {
         String message = request != null && request.message() != null ? request.message() : "";
         String documentContext = request != null ? request.documentContext() : null;
 
-        // Prepend skill routing directives, then try RAG context
-        String effectiveMessage = prependSkillDirectives(message);
+        // Build skill directives separately so they can be placed after the
+        // document context (recency in the prompt improves compliance).
+        String skillDirectives = buildSkillDirectives(message);
+        String effectiveMessage = !skillDirectives.isEmpty()
+                ? skillDirectives + message : message;
         String preRagMessage = effectiveMessage;
         effectiveMessage = prependRagContext(effectiveMessage);
 
@@ -197,44 +201,46 @@ public class GooseChatController {
             effectiveMessage = "The user has provided the following document. "
                     + "Use it to answer the question that follows.\n\n"
                     + "--- DOCUMENT START ---\n" + documentContext.trim() + "\n--- DOCUMENT END ---\n\n"
-                    + "User question: " + message;
+                    + "User question: " + message
+                    + (skillDirectives.isEmpty() ? "" : "\n\n" + skillDirectives);
         }
 
         return streamMessageInternal(sessionId, effectiveMessage, response);
     }
 
     /**
-     * Detect skill-related keywords in the user message and prepend explicit
-     * directives telling the LLM to EXECUTE the installed skill rather than
-     * provide generic instructions. This compensates for models (e.g. GenAI
-     * proxy models) that may not reliably follow multi-step skill workflows
-     * without additional prompt reinforcement.
+     * Build skill directive text based on keywords in the user message.
+     * Returns the directives string (may be empty), WITHOUT the user message.
+     * Callers are responsible for placing the directives AFTER the user
+     * question so LLMs see them last (recency improves compliance).
      */
-    private String prependSkillDirectives(String userMessage) {
+    private String buildSkillDirectives(String userMessage) {
         String lower = userMessage.toLowerCase();
         StringBuilder directives = new StringBuilder();
 
         if (lower.contains("google chat")) {
-            directives.append("SKILL DIRECTIVE: You have the 'google-chat-poster' skill installed. ")
-                .append("You MUST use it to actually post to Google Chat — do NOT just explain how. ")
-                .append("Load the skill, read GOOGLE_CHAT_SPACES from the environment, ")
-                .append("and execute the curl/script commands to post the message. ")
-                .append("If the user's prompt contains multiple tasks, aggregate ALL results ")
-                .append("into a single formatted Google Chat message before posting.\n\n");
+            directives.append("SKILL DIRECTIVE: The 'google-chat-poster' skill is already installed and loaded. ")
+                .append("Do NOT call extensionmanager or load — the skill is ready to use. ")
+                .append("Read GOOGLE_CHAT_SPACES from the environment and execute the curl command to post. ")
+                .append("If the prompt contains multiple tasks, complete ALL other tasks FIRST, ")
+                .append("then aggregate the results into a single Google Chat message and post it last.\n\n");
         }
 
         if (lower.contains("supply chain")) {
-            directives.append("SKILL DIRECTIVE: You have the 'supplychain-motivator' skill installed. ")
-                .append("You MUST use it to check the daily target and generate a motivation message — ")
-                .append("do NOT just describe supply chain concepts.\n\n");
+            directives.append("SKILL DIRECTIVE: The 'supplychain-motivator' skill is already installed and loaded. ")
+                .append("Do NOT call extensionmanager or load — the skill is ready to use. ")
+                .append("You MUST invoke the supplychain-motivator skill to analyze the supply chain data. ")
+                .append("AFTER retrieving the supply chain status, also run: echo $SUPPLY_CHAIN_DAILY_TARGET to read the daily production target. ")
+                .append("Then at the END of the supply chain section, add exactly ONE line — ")
+                .append("a fun team pep-talk cheering the factory crew toward that daily target, like a coach hyping up the team. ")
+                .append("Example format: '💪 Keep pushing team — we are X% to today's N-unit target! Let's crush it!' ")
+                .append("This pep-talk line is ONLY encouragement, NOT analysis. Do NOT skip this step.\n\n");
         }
 
-        if (directives.isEmpty()) {
-            return userMessage;
+        if (!directives.isEmpty()) {
+            logger.info("Skill directives built for message ({} chars)", directives.length());
         }
-
-        logger.info("Skill directives prepended for message ({} chars added)", directives.length());
-        return directives.toString() + userMessage;
+        return directives.toString();
     }
 
     /**
@@ -322,6 +328,7 @@ public class GooseChatController {
 
                 // Token batching to work around proxy buffering (e.g., Cloud Foundry Go Router)
                 final int[] tokenCount = {0};
+                final int[] activityCount = {0};
                 final StringBuilder tokenBatch = new StringBuilder();
                 final long[] lastSendTime = {System.currentTimeMillis()};
                 final int BATCH_SIZE_THRESHOLD = 10;
@@ -383,6 +390,7 @@ public class GooseChatController {
 
                         // Reset counters for new attempt
                         tokenCount[0] = 0;
+                        activityCount[0] = 0;
                         tokenBatch.setLength(0);
                         lastSendTime[0] = System.currentTimeMillis();
                     }
@@ -403,6 +411,7 @@ public class GooseChatController {
                                     case "message" -> {
                                         String activityJson = extractToolActivityFromMessage(event, sessionId);
                                         if (activityJson != null) {
+                                            activityCount[0]++;
                                             emitter.send(SseEmitter.event()
                                                 .name("activity")
                                                 .data(activityJson));
@@ -431,6 +440,7 @@ public class GooseChatController {
                                     case "notification" -> {
                                         String activityJson = formatNotificationActivity(event, sessionId);
                                         if (activityJson != null) {
+                                            activityCount[0]++;
                                             emitter.send(SseEmitter.event()
                                                 .name("activity")
                                                 .data(activityJson));
@@ -472,6 +482,7 @@ public class GooseChatController {
                         logger.warn("Session {} Goose execution failed on attempt {} — {}",
                             sessionId, attempt + 1, e.getMessage());
                         tokenCount[0] = 0;
+                        activityCount[0] = 0;
                         tokenBatch.setLength(0);
                     } catch (RuntimeException e) {
                         if (e.getMessage() != null && e.getMessage().contains("SSE send failed")) {
@@ -480,13 +491,18 @@ public class GooseChatController {
                         logger.warn("Session {} unexpected error on attempt {} — {}",
                             sessionId, attempt + 1, e.getMessage());
                         tokenCount[0] = 0;
+                        activityCount[0] = 0;
                         tokenBatch.setLength(0);
                     }
 
-                    logger.info("Session {} attempt {} produced {} tokens", sessionId, attempt + 1, tokenCount[0]);
+                    logger.info("Session {} attempt {} produced {} tokens, {} activities",
+                        sessionId, attempt + 1, tokenCount[0], activityCount[0]);
 
-                    // If we got tokens, or this is not a cold-start (messageCount > 0), stop retrying
-                    if (tokenCount[0] > 0 || session.messageCount() > 0) {
+                    // Stop retrying if we got text tokens, tool activity (e.g. skill
+                    // execution), or this is not a cold-start (messageCount > 0).
+                    // Tool-only responses are legitimate for multi-skill prompts where
+                    // the LLM spends its turns on tool calls before producing text.
+                    if (tokenCount[0] > 0 || activityCount[0] > 0 || session.messageCount() > 0) {
                         break;
                     }
 
@@ -499,15 +515,15 @@ public class GooseChatController {
                 // Signal heartbeat to stop
                 streamCompleted.set(true);
 
-                // Finalize: send SSE complete (with tokens) or retry (no visible text)
-                if (tokenCount[0] > 0) {
+                // Finalize: send SSE complete (tokens or tool activity) or retry (nothing at all)
+                if (tokenCount[0] > 0 || activityCount[0] > 0) {
                     session.incrementMessageCount();
                     emitter.send(SseEmitter.event()
                         .name("complete")
                         .data(String.valueOf(tokenCount[0])));
                     emitter.complete();
                 } else {
-                    logger.warn("Session {} produced 0 tokens after {} server-side retries — signalling client retry",
+                    logger.warn("Session {} produced 0 tokens and 0 activities after {} server-side retries — signalling client retry",
                         sessionId, MAX_COLD_START_RETRIES + 1);
                     emitter.send(SseEmitter.event()
                         .name("retry")

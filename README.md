@@ -58,7 +58,10 @@ cf push
 
 ## Example usage
 ```
-Check manufacturing stages, motivate current supply chain and check maintenance document. Post all results to Google chat
+Check manufacturing stages and current supply chain. Inspect maintenance document. 
+```
+```
+Post summary to Google chat
 ```
 ## Architecture
 
