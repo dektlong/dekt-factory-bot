@@ -230,10 +230,9 @@ public class GooseChatController {
             directives.append("SKILL DIRECTIVE: The 'supplychain-motivator' skill is already installed and loaded. ")
                 .append("Do NOT call extensionmanager or load — the skill is ready to use. ")
                 .append("You MUST invoke the supplychain-motivator skill to analyze the supply chain data. ")
-                .append("AFTER retrieving the supply chain status, also run: echo $SUPPLY_CHAIN_DAILY_TARGET to read the daily production target. ")
                 .append("Then at the END of the supply chain section, add exactly ONE line — ")
-                .append("a fun team pep-talk cheering the factory crew toward that daily target, like a coach hyping up the team. ")
-                .append("Example format: '💪 Keep pushing team — we are X% to today's N-unit target! Let's crush it!' ")
+                .append("a fun team pep-talk cheering the factory crew, like a coach hyping up the team. ")
+                .append("Example format: '💪 Keep pushing team — let's crush it!' ")
                 .append("This pep-talk line is ONLY encouragement, NOT analysis. Do NOT skip this step.\n\n");
         }
 
