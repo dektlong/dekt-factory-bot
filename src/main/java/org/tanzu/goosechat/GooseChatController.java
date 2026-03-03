@@ -236,6 +236,27 @@ public class GooseChatController {
                 .append("This pep-talk line is ONLY encouragement, NOT analysis. Do NOT skip this step.\n\n");
         }
 
+        boolean carOrderRequest = lower.contains("car order") || lower.contains("car orders")
+                || lower.contains("paint car") || lower.contains("paint the next car")
+                || lower.contains("ready to paint") || lower.contains("next car order")
+                || lower.contains("match car");
+        if (carOrderRequest) {
+            directives.append("SKILL DIRECTIVE: The 'car-orders-matching' skill is already installed and loaded. ")
+                .append("Do NOT answer this question from your own knowledge or by freely analysing MCP data. ")
+                .append("You MUST execute EXACTLY these 3 steps and NO others:\n")
+                .append("  Step 1: Call getRandomCarOrder via the dekt-car-orders MCP. Record the full order details.\n")
+                .append("  Step 2: Call getManufacturingStages via the dekt-factory-info MCP. ")
+                .append("Check whether ANY stage has a health value below 80 %.\n")
+                .append("  Step 3: If ALL stages are >= 80 % output ONLY:\n")
+                .append("    Car Order\n")
+                .append("    <full order details from Step 1>\n\n")
+                .append("    We are ready to paint your car.\n")
+                .append("  If ANY stage is < 80 % output ONLY:\n")
+                .append("    The factory stages cannot deal with this order at this time.\n")
+                .append("DO NOT produce tables, summaries, bullet lists, next-steps, emoji, or any other text. ")
+                .append("Your ENTIRE reply is the output block above — nothing else.\n\n");
+        }
+
         if (!directives.isEmpty()) {
             logger.info("Skill directives built for message ({} chars)", directives.length());
         }
