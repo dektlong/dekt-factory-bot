@@ -1,22 +1,24 @@
 # Dekt Factory Bot
 
-An AI-powered manufacturing monitoring bot that analyzes factory data, audits supply chains, and delivers actionable insights. Built with [Goose AI agent](https://github.com/block/goose), Spring Boot, and Angular -- all services hosted on **Tanzu Platform**.
+An AI-powered manufacturing monitoring bot that analyzes factory data, matches car orders, and delivers actionable insights. Built with [Goose AI agent](https://github.com/block/goose), Spring Boot, and Angular -- all services hosted on **Tanzu Platform**.
 
 
 > **[Getting Started Guide](GETTING-STARTED.md)** — Learn how to configure LLM providers, add MCP servers, set up skills, and deploy to Cloud Foundry with Tanzu Marketplace integration.
 
 ## Overview
 
-Dekt Factory Bot showcases how Tanzu brings 'adult supervision' to Agentic development and deployment while interacting with existing enterprise applications. 
+Dekt Factory Bot showcases how Tanzu brings 'adult supervision' to Agentic development and deployment while interacting with existing enterprise applications.
 
-It connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain and factory analysis, and uses document embeddings to ground responses in your own operational documents. 
+It connects to live manufacturing data through MCP servers, applies domain-specific skills for supply chain analysis and car-order matching, and uses document embeddings to ground responses in your own operational documents.
 
-All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data server -- are provisioned and managed on Tanzu Platform.
+All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MCP data servers -- are provisioned and managed on Tanzu Platform.
 
 ## Key Capabilities
 
-- **Manufacturing Data Monitoring** -- Connects to factory data via an MCP server (`dekt-factory-data`) hosted on Tanzu Platform
+- **Manufacturing Data Monitoring** -- Connects to factory stage health data via the `dekt-factory-info` MCP server hosted on Tanzu Platform
+- **Car Order Matching** -- Generates random car orders via the `dekt-car-orders` MCP server and validates factory capacity before accepting them
 - **Skills** -- Pluggable Goose skills for domain-specific analysis:
+  - `car-orders-matching` -- Matches a car order against manufacturing stage readiness and accepts or rejects it
   - `supplychain-motivator` -- Supply chain performance insights and recommendations
   - `google-chat-poster` -- Posts alerts and summaries to Google Chat spaces
 - **Document Embeddings** -- Upload and embed operational documents (PDFs) for retrieval-augmented responses (see: factory-maintenance-log.pdf), powered by a GenAI embedding service on Tanzu Platform
@@ -32,7 +34,8 @@ All services are bound and managed through Tanzu Platform:
 |---------|-------------|
 | `dekt-genai-chat` | GenAI LLM service for chat completions |
 | `dekt-genai-embed` | GenAI embedding service for document vectorization |
-| `dekt-factory-data` | MCP server exposing live manufacturing data, using this dummy Factory Management System - https://github.com/cpage-pivotal/factory-mcp-server |
+| `dekt-factory-info` | MCP server exposing live manufacturing stage health data |
+| `dekt-car-orders` | MCP server for generating and managing car orders |
 | `dekt-db` | Database for session and document storage |
 | `dekt-sso` | SSO identity provider for user authentication |
 
@@ -58,11 +61,15 @@ cf push
 
 ## Example usage
 ```
-Check manufacturing stages and current supply chain. Inspect maintenance document. 
+Check manufacturing stages and current supply chain. Inspect maintenance document.
+```
+```
+Are we ready to paint the next car order?
 ```
 ```
 Post summary to Google chat
 ```
+
 ## Architecture
 
 ```
@@ -91,13 +98,14 @@ Post summary to Google chat
 │  │  Tanzu Platform Services              ▼                               │  │
 │  │                                                                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
-│  │  │ dekt-genai-  │  │ dekt-genai-  │  │ dekt-factory-data         │   │  │
+│  │  │ dekt-genai-  │  │ dekt-genai-  │  │ dekt-factory-info         │   │  │
 │  │  │ chat (LLM)   │  │ embed        │  │ (MCP Server)              │   │  │
 │  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
 │  │                                                                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
-│  │  │ dekt-sso     │  │ dekt-db      │  │    
-│  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
+│  │  │ dekt-sso     │  │ dekt-db      │  │ dekt-car-orders           │   │  │
+│  │  └──────────────┘  └──────────────┘  │ (MCP Server)              │   │  │
+│  │                                       └───────────────────────────┘   │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -108,6 +116,7 @@ Skills are pluggable Goose extensions configured in `.goose-config.yml`:
 
 | Skill | Purpose |
 |-------|---------|
+| `car-orders-matching` | Generates a random car order and validates factory stage readiness (all stages ≥ 80 %) before accepting it |
 | `supplychain-motivator` | Adds a motivation sentence to the supply chain data based on performance |
 | `google-chat-poster` | Posts alerts and summaries to configured Google Chat spaces |
 

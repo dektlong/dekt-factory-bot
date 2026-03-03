@@ -18,5 +18,6 @@ applications:
       - dekt-genai-chat
       - dekt-genai-embed
       - dekt-factory-info  
+      - dekt-car-orders
       - dekt-db
 
