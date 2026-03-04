@@ -15,8 +15,8 @@ All backing services -- GenAI chat, GenAI embeddings, SSO, databases, and the MC
 
 ## Key Capabilities
 
-- **Manufacturing Data Monitoring** -- Connects to factory stage health data via the `dekt-factory-info` MCP server hosted on Tanzu Platform
-- **Car Order Matching** -- Generates random car orders via the `dekt-car-orders` MCP server and validates factory capacity before accepting them
+- **Manufacturing Data Monitoring** -- Connects to factory stage health data via the `manufacturing-data` MCP server hosted on Tanzu Platform
+- **Car Order Matching** -- Generates random car orders via the `factory-orders` MCP server and validates factory capacity before accepting them
 - **Skills** -- Pluggable Goose skills for domain-specific analysis:
   - `car-orders-matching` -- Matches a car order against manufacturing stage readiness and accepts or rejects it
   - `supplychain-motivator` -- Supply chain performance insights and recommendations
@@ -32,12 +32,12 @@ All services are bound and managed through Tanzu Platform:
 
 | Service | Description |
 |---------|-------------|
-| `dekt-genai-chat` | GenAI LLM service for chat completions |
-| `dekt-genai-embed` | GenAI embedding service for document vectorization |
-| `dekt-factory-info` | MCP server exposing live manufacturing stage health data |
-| `dekt-car-orders` | MCP server for generating and managing car orders |
-| `dekt-db` | Database for session and document storage |
-| `dekt-sso` | SSO identity provider for user authentication |
+| `factory-genai-chat` | GenAI LLM service for chat completions |
+| `factory-genai-embed` | GenAI embedding service for document vectorization |
+| `manufacturing-data` | MCP server exposing live manufacturing stage health data |
+| `factory-orders` | MCP server for generating and managing car orders |
+| `maintenance-db` | Database for session and document storage |
+| `factory-sso` | SSO identity provider for user authentication |
 
 ## Prerequisites
 
@@ -98,14 +98,14 @@ Post summary to Google chat
 │  │  Tanzu Platform Services              ▼                               │  │
 │  │                                                                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
-│  │  │ dekt-genai-  │  │ dekt-genai-  │  │ dekt-factory-info         │   │  │
-│  │  │ chat (LLM)   │  │ embed        │  │ (MCP Server)              │   │  │
+│  │  │ factory-     │  │ factory-     │  │ manufacturing-data        │   │  │
+│  │  │ genai-chat   │  │ genai-embed  │  │ (MCP Server)              │   │  │
 │  │  └──────────────┘  └──────────────┘  └───────────────────────────┘   │  │
 │  │                                                                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐   │  │
-│  │  │ dekt-sso     │  │ dekt-db      │  │ dekt-car-orders           │   │  │
-│  │  └──────────────┘  └──────────────┘  │ (MCP Server)              │   │  │
-│  │                                       └───────────────────────────┘   │  │
+│  │  │ factory-sso  │  │ maintenance- │  │ factory-orders            │   │  │
+│  │  └──────────────┘  │ db           │  │ (MCP Server)              │   │  │
+│  │                    └──────────────┘  └───────────────────────────┘   │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

@@ -14,10 +14,10 @@ applications:
       
             
     services:
-      - dekt-sso
-      - dekt-genai-chat
-      - dekt-genai-embed
-      - dekt-factory-info  
-      - dekt-car-orders
-      - dekt-db
+      - factory-sso
+      - factory-genai-chat
+      - factory-genai-embed
+      - manufacturing-data
+      - factory-orders
+      - maintenance-db
 
