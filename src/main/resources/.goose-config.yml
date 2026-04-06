@@ -8,7 +8,7 @@
 provider: openai
 
 # Model to use with the provider
-model: gpt-5.2-chat-latest
+model: gpt-oss-120b
 
 # Extensions to enable by default
 extensions:

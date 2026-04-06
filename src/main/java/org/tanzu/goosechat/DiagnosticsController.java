@@ -204,6 +204,53 @@ public class DiagnosticsController {
     }
     
     /**
+     * List models available on the GenAI endpoint.
+     * Hit /api/diagnostics/models to see what model names are valid.
+     */
+    @GetMapping("/models")
+    public Map<String, Object> listModels() {
+        Map<String, Object> result = new TreeMap<>();
+
+        String openaiHost = System.getenv("OPENAI_HOST");
+        String openaiApiKey = System.getenv("OPENAI_API_KEY");
+        String currentModel = System.getenv("GOOSE_MODEL");
+
+        result.put("configuredModel", currentModel != null ? currentModel : "(from goose-config.yml)");
+        result.put("baseUrl", openaiHost);
+
+        if (openaiHost == null || openaiHost.isEmpty()) {
+            result.put("error", "OPENAI_HOST not configured");
+            return result;
+        }
+        if (openaiApiKey == null || openaiApiKey.isEmpty()) {
+            result.put("error", "OPENAI_API_KEY not configured");
+            return result;
+        }
+
+        try {
+            String modelsUrl = openaiHost + "/v1/models";
+            result.put("modelsUrl", modelsUrl);
+
+            RestClient client = restClientBuilder.build();
+            String response = client.get()
+                    .uri(modelsUrl)
+                    .header("Authorization", "Bearer " + openaiApiKey)
+                    .retrieve()
+                    .body(String.class);
+
+            result.put("success", true);
+            result.put("rawResponse", response);
+            logger.info("Available models: {}", response);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            logger.error("Models listing failed", e);
+        }
+
+        return result;
+    }
+
+    /**
      * Test the GenAI proxy with streaming to verify SSE format.
      */
     @GetMapping("/genai-stream-test")

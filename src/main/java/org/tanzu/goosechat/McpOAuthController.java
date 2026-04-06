@@ -11,7 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import org.tanzu.goose.cf.GooseConfiguration;
 import org.tanzu.goose.cf.GooseExecutor;
 import org.tanzu.goose.cf.McpServerInfo;
-import org.tanzu.goose.cf.oauth.*;
+import org.tanzu.goosechat.oauth.McpOAuthConfig;
+import org.tanzu.goosechat.oauth.McpOAuthManager;
+import org.tanzu.goosechat.oauth.McpOAuthManagerImpl;
+import org.tanzu.goosechat.oauth.McpOAuthTokens;
 
 import java.util.List;
 import java.util.Map;
@@ -150,13 +153,15 @@ public class McpOAuthController {
             String baseUrl = detectBaseUrl(request);
             String redirectUri = baseUrl + "/oauth/callback";
             
-            // Determine client ID: use pre-registered client ID if available,
+            // Determine client ID: use pre-registered client ID if available (stored in env map),
             // otherwise use Client ID Metadata Document URL (for servers with dynamic registration)
             String clientId;
             String clientSecret = null;
-            if (serverInfo.hasClientCredentials()) {
-                clientId = serverInfo.clientId();
-                clientSecret = serverInfo.clientSecret();
+            String envClientId = serverInfo.env() != null ? serverInfo.env().get("client_id") : null;
+            String envClientSecret = serverInfo.env() != null ? serverInfo.env().get("client_secret") : null;
+            if (envClientId != null && !envClientId.isEmpty()) {
+                clientId = envClientId;
+                clientSecret = envClientSecret;
                 logger.info("Using pre-registered client ID for server: {}", serverName);
             } else {
                 clientId = baseUrl + "/oauth/client-metadata.json";
@@ -169,9 +174,10 @@ public class McpOAuthController {
             // Discover OAuth configuration
             McpOAuthConfig config = manager.discoverOAuthConfig(serverName, serverInfo.url()).join();
             
-            // Get configured scopes (if any)
-            List<String> configuredScopes = serverInfo.hasConfiguredScopes() 
-                ? serverInfo.getScopesList() 
+            // Get configured scopes (if any) — read from env map
+            String envScopes = serverInfo.env() != null ? serverInfo.env().get("scopes") : null;
+            List<String> configuredScopes = (envScopes != null && !envScopes.isEmpty())
+                ? List.of(envScopes.split("[,\\s]+"))
                 : null;
             
             if (configuredScopes != null) {

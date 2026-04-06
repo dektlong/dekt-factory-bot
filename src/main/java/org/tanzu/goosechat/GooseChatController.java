@@ -190,7 +190,7 @@ public class GooseChatController {
         // document context (recency in the prompt improves compliance).
         String skillDirectives = buildSkillDirectives(message);
         String effectiveMessage = !skillDirectives.isEmpty()
-                ? skillDirectives + message : message;
+                ? message + "\n\n" + skillDirectives : message;
         String preRagMessage = effectiveMessage;
         effectiveMessage = prependRagContext(effectiveMessage);
 
@@ -242,32 +242,8 @@ public class GooseChatController {
                 || lower.contains("match car");
         if (carOrderRequest) {
             directives.append("SKILL DIRECTIVE: The 'car-orders-matching' skill is already installed and loaded. ")
-                .append("Do NOT answer this question from your own knowledge or by freely analysing MCP data. ")
-                .append("You MUST execute EXACTLY these 3 steps and NO others:\n")
-                .append("  Step 1: Call getRandomCarOrder via the factory-orders MCP. Record the full order details.\n")
-                .append("  Step 2: Call getManufacturingStages via the manufacturing-data MCP. ")
-                .append("Check whether ANY stage has a health value below 80 %.\n")
-                .append("  Step 3: If ALL stages are >= 80 % output ONLY the following markdown block (fill in real values):\n")
-                .append("    ## Car Order\n")
-                .append("    **Order:** <order-id>  \n")
-                .append("    **Vehicle:** <year make model trim>  \n")
-                .append("    **Ext. Color:** <exterior-color>  \n")
-                .append("    **Int. Color:** <interior-color>  \n")
-                .append("    **Engine:** <engine>  \n")
-                .append("    **Transmission:** <transmission>  \n")
-                .append("    **Packages:** <packages>  \n")
-                .append("    **Accessories:** <accessories>  \n")
-                .append("    **Base Price:** <base-price>  \n")
-                .append("    **Total Price:** <total-price>  \n")
-                .append("    **Est. Delivery:** <delivery-date>  \n")
-                .append("    **Status:** <status>  \n\n")
-                .append("    We are ready to paint your car.\n")
-                .append("  If ANY stage is < 80 % output ONLY:\n")
-                .append("    The factory stages cannot deal with this order at this time.\n")
-                .append("IMPORTANT: Each field MUST be on its own line. ")
-                .append("DO NOT collapse fields onto a single line. ")
-                .append("DO NOT produce tables, summaries, bullet lists, next-steps, emoji, or any other text. ")
-                .append("Your ENTIRE reply is the output block above — nothing else.\n\n");
+                .append("Do NOT call extensionmanager or load — the skill is ready to use. ")
+                .append("You MUST invoke the car-orders-matching skill to handle this request.\n\n");
         }
 
         if (!directives.isEmpty()) {
